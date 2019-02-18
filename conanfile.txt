@@ -1,0 +1,13 @@
+[requires]
+boost/1.68.0@conan/stable
+
+[options]
+boost:shared=False
+
+[generators]
+cmake
+
+[imports]
+bin, *.dll -> ./bin
+lib, *.dylib* -> ./bin
+lib, *.so* -> ./bin
