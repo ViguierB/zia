@@ -1,0 +1,67 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build-debug",
+			"type": "shell",
+			"command": "./compileDebug.sh -- -j 8",
+			"windows": {
+				"command": "(ノಠ益ಠ)ノ彡┻━┻"
+			},
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			},
+			"problemMatcher": [
+				"$go"
+			]
+		},
+		{
+			"label": "rebuild-debug",
+			"type": "shell",
+			"command": "./compileDebug.sh --clean-first -- -j 8",
+			"windows": {
+				"command": "(ノಠ益ಠ)ノ彡┻━┻"
+			},
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			},
+			"problemMatcher": [
+				"$go"
+			]
+		},
+		{
+			"label": "build-release",
+			"type": "shell",
+			"command": "./compileRelease.sh -- -j 8",
+			"windows": {
+				"command": "(ノಠ益ಠ)ノ彡┻━┻"
+			},
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			},
+			"problemMatcher": [
+				"$go"
+			]
+		},
+		{
+			"label": "rebuild-release",
+			"type": "shell",
+			"command": "./compileRelease.sh --clean-first -- -j 8",
+			"windows": {
+				"command": "(ノಠ益ಠ)ノ彡┻━┻"
+			},
+			"group": "build",
+			"presentation": {
+				"reveal": "always"
+			},
+			"problemMatcher": [
+				"$go"
+			]
+		}
+	]
+}
