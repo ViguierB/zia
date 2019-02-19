@@ -10,9 +10,11 @@
 #include <vector>
 #include <functional>
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/bind.hpp>
 #include "Zia.hpp"
 #include "Zany/Connection.hpp"
+#include "Constants.hpp"
 
 namespace zia {
 
@@ -20,7 +22,6 @@ void	Main::routine() {
 	
 }
 
-template<auto PVERSION>
 class _listener {
 public:
 	class Connection: zany::Connection {
@@ -46,8 +47,9 @@ public:
 	};
 
 
-	_listener(boost::asio::io_service& ios, std::uint16_t port):
-		_acceptor(ios, boost::asio::ip::tcp::endpoint(PVERSION(), port)) {}
+	template<typename PVERSION>
+	_listener(PVERSION pv, boost::asio::io_service& ios, std::uint16_t port):
+		_acceptor(ios, boost::asio::ip::tcp::endpoint(pv(), port)) {}
 
 	void startAccept() {
 		auto nc = Connection::make(_acceptor.get_io_service());
@@ -71,27 +73,36 @@ public:
 };
 
 void	Main::_listening(boost::asio::io_service &ios) {
-	namespace bip = boost::asio::ip;
-
-	std::vector<std::uint16_t> defaultPort{ 80 };
-
-	auto &ports = (_vm.count("port")
-					? _vm["port"].as<std::vector<std::uint16_t>>()
-					: defaultPort);
+	auto &ports = _config["listen"].value<zany::Array>();
 	
-	std::vector<_listener<&boost::asio::ip::tcp::v4>>	v4Acceptors;
+	std::vector<_listener>	acceptors;
 
-	v4Acceptors.reserve(ports.size());
-	for (auto port: ports) {
-		auto &listener = v4Acceptors.emplace_back(ios, port);
-		listener.onHandleAccept = [this] (zany::Connection &p) {
+	acceptors.reserve(ports.size() * 2);
+	for (auto port__: ports) {
+		std::uint16_t	port = port__.to<int>();
+		auto 			&v4listener = acceptors.emplace_back(&boost::asio::ip::tcp::v4, ios, port);
+		// auto &v6listener = acceptors.emplace_back(&boost::asio::ip::tcp::v6, ios, port);
+		v4listener.onHandleAccept = /* v6listener.onHandleAccept = */ [this] (zany::Connection &p) {
 			this->_ctx.addTask(std::bind(&Main::startPipeline, this, 0));
 		};
 
-		listener.startAccept();
+		v4listener.startAccept();
+		// v6listener.startAccept();
 	}
 
 	ios.run();
+}
+
+void	Main::_bootstrap() {
+	if (!boost::filesystem::exists(_vm["parser"].as<std::string>()))
+		throw std::runtime_error((_vm["parser"].as<std::string>() + ": Parser module not found").c_str());
+
+	auto &parser = _loader.load(_vm["parser"].as<std::string>());
+
+	_config = parser.parse(_vm["config"].as<std::string>());
+	if (_config == false || _config.isObject() == false) {
+		_config = constant::defConfig.clone();
+	}
 }
 
 void	Main::run(int ac, char **av) {
@@ -100,7 +111,9 @@ void	Main::run(int ac, char **av) {
 	po::options_description desc("Allowed options");
 	desc.add_options()
 		("help", "produce help message")
-		("port", po::value<std::vector<std::uint16_t>>()->composing(), "set listening port")
+		("parser", po::value<std::string>()->default_value(constant::parserPath), "Parser module path")
+		("config", po::value<std::string>()->default_value(constant::mainConfigPath), "Main config path")
+		("worker-thread-number", po::value<std::uint16_t>()->default_value(constant::defThreadNbr), "Number of worker threads")
 	;
 
 	po::store(po::parse_command_line(ac, av, desc), _vm);
@@ -110,6 +123,12 @@ void	Main::run(int ac, char **av) {
 		std::cout << desc << "\n";
 		return;
 	}
+
+	auto tp = std::make_unique<zany::ThreadPool>(std::max(std::uint16_t(1), _vm["worker-thread-number"].as<std::uint16_t>()));
+	
+	this->_pline.linkThreadPool(*tp);
+
+	_bootstrap();
 
 	boost::asio::io_service ios;
 	std::thread	t(std::bind(&Main::_listening, this, std::ref(ios)));

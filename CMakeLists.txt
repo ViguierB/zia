@@ -13,6 +13,7 @@ else ()
 endif ()
 
 
+find_package (Threads)
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
@@ -20,19 +21,29 @@ include_directories(zany/lib/)
 include_directories(srcs/)
 include_directories(includes/)
 
-set(INCLUDES
+set(ZIA_INCLUDES
 	includes/Zia.hpp
 )
 
-set(SRCS
+set(ZIA_SRCS
 	zany/lib/Zany.hpp
 	srcs/main.cpp
 	srcs/Zia.cpp
 )
 
-add_executable(${PROJECT_NAME} ${INCLUDES} ${SRCS})
+add_executable(${PROJECT_NAME} ${ZIA_INCLUDES} ${ZIA_SRCS})
 
-find_package (Threads)
 target_link_libraries(${PROJECT_NAME} ${CMAKE_DL_LIBS})
 target_link_libraries(${PROJECT_NAME} ${CONAN_LIBS})
 target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
+
+set(JSONPARSER_NAME JsonParserModule)
+
+set(JSONPARSER_MODULE_SRCS
+	zany/lib/Zany.hpp
+	srcs/modules/JsonParser/Module.cpp
+	srcs/modules/JsonParser/Parser.hpp
+	srcs/modules/JsonParser/Parser.cpp
+)
+
+add_library(${JSONPARSER_NAME} SHARED ${JSONPARSER_MODULE_SRCS})

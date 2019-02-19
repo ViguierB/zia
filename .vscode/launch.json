@@ -10,7 +10,10 @@
 			"request": "launch",
 			"preLaunchTask": "build-debug",
 			"program": "${workspaceFolder}/build-Linux/bin/zia",
-			"args": [],
+			"args": [
+				"--parser=./build-Linux/lib/libJsonParserModule.so",
+				"--config=./tests/config.json"
+			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}",
 			"environment": [],
