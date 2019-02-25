@@ -27,7 +27,8 @@ struct constant {
 		defConfig = zany::makeObject{
 			{ "listen", { 80, 443 } },
 			{ "modules", zany::makeArray{} },
-			{ "server", zany::makeArray{} }
+			{ "server", zany::makeArray{} },
+			{ "workdir", (zany::isWindows ? ".\\" : "/etc/zia/") }
 		};
 
 };
