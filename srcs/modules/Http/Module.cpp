@@ -23,11 +23,12 @@ private:
 	static inline void	_beforeHandleRequest(zany::Pipeline::Instance &i);
 	inline void			_afterHandleRequest(zany::Pipeline::Instance &i);
 	inline void			_beforeHandleResponse(zany::Pipeline::Instance &i);
-	static inline void	_onHandleResponse(zany::Pipeline::Instance &i);
+	inline void			_onHandleResponse(zany::Pipeline::Instance &i);
 	static inline auto	_getMethodeFromString(std::string &method);
 	
 	static inline auto	_getReasonPhrase(int code) -> const std::string&;
 	inline bool			_isAllowedExt(boost::filesystem::path const &p, zany::Pipeline::Instance const &i) const;
+	static inline void	_parsePath(zany::Pipeline::Instance &i, std::string const &path);
 };
 
 void	HttpModule::init() {
@@ -41,7 +42,7 @@ void	HttpModule::init() {
 		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&HttpModule::_beforeHandleResponse, this, std::placeholders::_1));
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_RESPONSE>()
-		.addTask<zany::Pipeline::Priority::HIGH>(&HttpModule::_onHandleResponse);
+		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&HttpModule::_onHandleResponse, this, std::placeholders::_1));
 }
 
 auto HttpModule::_getMethodeFromString(std::string &method) {
@@ -114,11 +115,34 @@ const std::string	&HttpModule::_getReasonPhrase(int code) {
 	return map.find(code).operator*().second;
 }
 
+void	HttpModule::_parsePath(zany::Pipeline::Instance &i, std::string const &path) {
+	std::size_t		endPathPos = 0;
+	char			c;
+
+	while (endPathPos < path.size() && (c = path.at(endPathPos)) && c != '?') ++endPathPos;
+
+	i.request.path = std::string(path.begin(), path.begin() + endPathPos);
+	if (c == '?') {
+
+		std::istringstream	sstm(std::string(path.begin() + endPathPos + 1, path.end()));
+		std::string			param;
+
+		while (std::getline(sstm, param, '&')) {
+			std::string		key;
+
+			std::istringstream	pstm(param);
+			std::getline(pstm, key, '=');
+			std::getline(pstm, i.request.params[key]);
+		}
+	}
+}
 
 void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 	std::string	line;
 
+	i.connection->stream() >> std::ws;
 	std::getline(i.connection->stream(), line);
+	if (line.empty()) { return; }
 	{
 		line.erase(--line.end());
 		std::istringstream stm(line);
@@ -128,7 +152,7 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 
 		i.request.method = _getMethodeFromString(str);
 		std::getline(stm, str, ' ');
-		i.request.path = str;
+		HttpModule::_parsePath(i, str);
 
 		std::getline(stm, str, ' ');
 
@@ -185,10 +209,9 @@ void	HttpModule::_afterHandleRequest(zany::Pipeline::Instance &i) {
 }
 
 bool	HttpModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i) const {
-	static constexpr std::array<const char*, 5> defexts{
+	static constexpr std::array<const char*, 4> defexts{
 		".html",
 		".htm",
-		".txt",
 		".css",
 		".js"
 	};
@@ -219,7 +242,6 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 		for (auto &entry: boost::make_iterator_range(boost::filesystem::directory_iterator(i.request.path))) {
 			boost::filesystem::path	p(entry);
 			if (boost::filesystem::is_regular_file(p)
-			&& _isAllowedExt(p, i)
 			&& boost::to_lower_copy(p.stem().string()) == "index") {
 				i.request.path = p.string();
 			}
@@ -231,12 +253,14 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 		i.response.status = 404;
 	} else if (!_isAllowedExt(i.request.path, i)) {
 		i.response.status = 403;
-	} else {
+	} else if (i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto &fs = (i.properties["filestream"] = zany::Property::make<std::ifstream>(i.request.path)).get<std::ifstream>();
 
 		if (!fs.is_open()) {
 			i.response.status = 500;
 		}
+
+		i.writerID = this->getUniqueId();
 	}
 
 	auto &resp = i.response;
@@ -253,7 +277,9 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 }
 
 void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
-	if (i.response.status == 200) {
+	if (i.writerID != this->getUniqueId())
+		return;
+	if (i.response.status == 200 && i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto 			&fs = i.properties["filestream"].get<std::ifstream>();
 		std::streamsize	sread;
 		char			buffer[1024];
@@ -266,7 +292,10 @@ void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 			return;
 		}
 	} else {
-		i.connection->stream() << _getReasonPhrase(i.response.status) << "\r\n";
+		i.connection->stream() << "<html><body><h2>"
+			<< i.response.status << " - "
+			<< _getReasonPhrase(i.response.status)
+				<< "</h2></body></html>\r\n";
 	}
 }
 

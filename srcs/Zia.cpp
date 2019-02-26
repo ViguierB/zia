@@ -28,6 +28,7 @@ void	Main::_bootstrap() {
 							: def;
 	bool	parsed = false;
 
+	boost::filesystem::current_path(_vm["work-dir"].as<std::string>());
 
 	for (auto &pm : pmodules) {
 		loadModule(pm, [this, &parsed] (auto &module) {
@@ -63,6 +64,7 @@ void	Main::run(int ac, char **av) {
 	po::options_description desc("Allowed options");
 	desc.add_options()
 		("help", "produce help message")
+		("work-dir", po::value<std::string>()->default_value(constant::defWorkDir), "workdir")
 		("modules", po::value<std::vector<std::string>>(), "modules path")
 		("config", po::value<std::string>()->default_value(constant::mainConfigPath), "Main config path")
 		("worker-thread-number", po::value<std::uint16_t>()->default_value(constant::defThreadNbr), "Number of worker threads")
