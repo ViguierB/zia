@@ -20,11 +20,10 @@ elif [ "$1" = "--nodocker" ]; then
 	shift
   ./.buildTools/_start_compile.sh $buildType $@
 else
-	cmd=$(echo "$(pwd)/.buildTools/_start_compile.sh $buildType $@")
+	cmd=$(echo "export CONAN_USER_HOME='$(pwd)/.cache'; $(pwd)/.buildTools/_start_compile.sh $buildType $@")
 
   docker run \
 	-v $(pwd):$(pwd) \
-	-v $(pwd)/.cache:/root/.conan \
 	-t \
 		epitechcontent/epitest-docker \
 			/bin/bash -c "$cmd"
