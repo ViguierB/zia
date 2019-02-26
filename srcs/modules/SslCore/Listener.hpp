@@ -7,9 +7,12 @@
 
 #pragma once
 
+#include <iostream>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
-#include "Zany.hpp"
+#include "Zany/Connection.hpp"
+#include "Zany/Pipeline.hpp"
+#include "Zany/Event.hpp"
 
 namespace zia {
 

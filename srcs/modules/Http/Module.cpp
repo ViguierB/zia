@@ -58,8 +58,9 @@ auto HttpModule::_getMethodeFromString(std::string &method) {
 	} else if (method == "TRACE") {
 		return zany::HttpRequest::RequestMethods::TRACE;
 	} else if (method == "DELETE") {
-		return zany::HttpRequest::RequestMethods::_DELETE_;
+		return zany::HttpRequest::RequestMethods::DELETE;
 	}
+	return zany::HttpRequest::RequestMethods::ERROR;
 }
 
 void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {

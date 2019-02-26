@@ -7,8 +7,8 @@
 
 #include <fstream>
 #include <thread>
-#include "Zany.hpp"
 #include "./Listener.hpp"
+#include "Zany.hpp"
 
 namespace zia {
 
