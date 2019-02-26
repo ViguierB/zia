@@ -21,7 +21,6 @@ public:
 	virtual auto	getConfig() const -> const zany::Entity final { return _config; }
 	void			run(int ac, char **av);
 	void			startPipeline(zany::Connection::SharedInstance c);
-	void			onPipelineReady(zany::Pipeline::Instance &);
 private:
 	void			_listening();
 	void			_bootstrap();

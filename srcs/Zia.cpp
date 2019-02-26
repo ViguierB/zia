@@ -20,19 +20,6 @@
 
 namespace zia {
 
-/**
- *  Thread Safe !!
- **/
-void	Main::onPipelineReady(zany::Pipeline::Instance &instance) {
-	instance.context.addTask([&] {
-		zany::Pipeline::Hooks::forEach([&] (auto hook) {
-			this->getPipeline().getHookSet(hook).execute(instance);
-		});
-		instance.context.stop();
-	});
-	instance.context.run();
-}
-
 void	Main::_bootstrap() {
 	std::vector<std::string>
 			def{ constant::parserPath };

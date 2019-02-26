@@ -27,21 +27,11 @@ public:
 
 		auto		&socket() { return _stream.socket(); }
 		static auto	&fromZany(zany::Connection &self) { return reinterpret_cast<Connection&>(self); }
-
-		void	setInstance(zany::Pipeline::Instance &instance) { _instance = &instance; }
 	private:
 		Connection(boost::asio::io_service& ios):
-				zany::Connection() {
-			auto &m = zany::evt::Manager::get();
-
-			_collector << m["onClose"]->addHandler([this] {
-				if (_instance)
-					_instance->context.stop();
-			});
-		}
+				zany::Connection() {}
 
 		boost::asio::ip::tcp::iostream 	_stream;
-		zany::Pipeline::Instance		*_instance = nullptr;
 		zany::evt::HdlCollector			_collector;
 	};
 
