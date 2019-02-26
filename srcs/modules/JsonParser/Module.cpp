@@ -14,7 +14,7 @@ namespace zia {
 class JsonParserModule : public zany::Loader::AbstractModule {
 public:
 	virtual auto	name() const -> const std::string&
-		{ static const std::string name("JsonParserModule"); return name; }
+		{ static const std::string name("JsonParser"); return name; }
 	virtual void	init() {};
 	virtual bool	isAParser() final { return true; }
 	virtual auto	parse(std::string const &filename) -> zany::Entity final;

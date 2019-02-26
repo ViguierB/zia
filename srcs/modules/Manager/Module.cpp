@@ -25,7 +25,7 @@ public:
 		{ static const std::string name("ManagerModule"); return name; }
 	virtual void	init() final;
 private:
-	void	verifConfig() {
+	void	_verifConfig() {
 		auto &config = this->master->getConfig();
 
 		try {
@@ -48,7 +48,7 @@ private:
 };
 
 void	ManagerModule::init() {
-	verifConfig();
+	_verifConfig();
 
 	_worker = std::make_unique<decltype(_worker)::element_type>(
 		std::bind(&ManagerModule::_entrypoint, this));

@@ -3,7 +3,17 @@
 		8080,
 		4433
 	],
-	"server": [],
-	"modules": [
+	"server": [
+		{
+			"host": "localhost",
+			"port": 8080,
+			"path": "tests/def/"
+		},
+		{
+			"host": "localhost",
+			"port": 4433,
+			"path": "tests/defssl/",
+			"ssl": true
+		}
 	]
 }
