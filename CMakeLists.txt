@@ -3,13 +3,18 @@ set(PROJECT_NAME zia)
 cmake_minimum_required(VERSION 3.10)
 project(${PROJECT_NAME})
 
-
 set(CMAKE_CXX_STANDARD 17)
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
 
 else ()
 	#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ggdb")
-	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter")
+	set(CMAKE_CXX_FLAGS_DEBUG
+		"${CMAKE_CXX_FLAGS_DEBUG} -ggdb -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter"
+	)
+	add_custom_command(
+		OUTPUT /tmp/out
+		COMMAND git submodule update --init --recursive
+	)
 endif ()
 
 
@@ -63,3 +68,4 @@ add_library(${JSONPARSER_NAME} SHARED ${JSONPARSER_MODULE_SRCS})
 add_library(${HTTP_NAME} SHARED ${HTTP_MODULE_SRCS})
 add_library(${SSLCORE_NAME} SHARED ${SSLCORE_MODULE_SRCS})
 target_link_libraries(${SSLCORE_NAME} ${CONAN_LIBS})
+target_link_libraries(${HTTP_NAME} ${CONAN_LIBS})

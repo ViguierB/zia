@@ -6,6 +6,7 @@
 */
 
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 #include <sstream>
 #include "Zany/Loader.hpp"
 #include "Zany/Pipeline.hpp"
@@ -20,10 +21,13 @@ public:
 	virtual void	init() final;
 private:
 	static inline void	_beforeHandleRequest(zany::Pipeline::Instance &i);
-	static inline void	_onHandleRequest(zany::Pipeline::Instance &i);
 	inline void			_afterHandleRequest(zany::Pipeline::Instance &i);
+	inline void			_beforeHandleResponse(zany::Pipeline::Instance &i);
 	static inline void	_onHandleResponse(zany::Pipeline::Instance &i);
 	static inline auto	_getMethodeFromString(std::string &method);
+	
+	static inline auto	_getReasonPhrase(int code) -> const std::string&;
+	inline bool			_isAllowedExt(boost::filesystem::path const &p, zany::Pipeline::Instance const &i) const;
 };
 
 void	HttpModule::init() {
@@ -31,10 +35,10 @@ void	HttpModule::init() {
 		.addTask<zany::Pipeline::Priority::HIGH>(&HttpModule::_beforeHandleRequest);
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_REQUEST>()
-		.addTask<zany::Pipeline::Priority::HIGH>(&HttpModule::_onHandleRequest);
+		.addTask<zany::Pipeline::Priority::LOW>(std::bind(&HttpModule::_afterHandleRequest, this, std::placeholders::_1));
 
-	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_REQUEST>()
-		.addTask<zany::Pipeline::Priority::LOW>([this] (auto &i) { _afterHandleRequest(i); });
+	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::BEFORE_HANDLE_RESPONSE>()
+		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&HttpModule::_beforeHandleResponse, this, std::placeholders::_1));
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_RESPONSE>()
 		.addTask<zany::Pipeline::Priority::HIGH>(&HttpModule::_onHandleResponse);
@@ -63,11 +67,55 @@ auto HttpModule::_getMethodeFromString(std::string &method) {
 	return zany::HttpRequest::RequestMethods::ERROR;
 }
 
-void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
-	i.response.status = 200;
+const std::string	&HttpModule::_getReasonPhrase(int code) {
+	static const std::unordered_map<int, std::string> map {
+		{ 100, "Continue" },
+		{ 101, "Switching Protocols" },
+		{ 200, "OK" },
+		{ 201, "Created" },
+		{ 202, "Accepted" },
+		{ 203, "Non-Authoritative Information" },
+		{ 204, "No Content" },
+		{ 205, "Reset Content" },
+		{ 206, "Partial Content" },
+		{ 300, "Multiple Choices" },
+		{ 301, "Moved Permanently" },
+		{ 302, "Found" },
+		{ 303, "See Other" },
+		{ 304, "Not Modified" },
+		{ 305, "Use Proxy" },
+		{ 307, "Temporary Redirect" },
+		{ 400, "Bad Request" },
+		{ 401, "Unauthorized" },
+		{ 402, "Payment Required" },
+		{ 403, "Forbidden" },
+		{ 404, "Not Found" },
+		{ 405, "Method Not Allowed" },
+		{ 406, "Not Acceptable" },
+		{ 407, "Proxy Authentication Required" },
+		{ 408, "Request Time-out" },
+		{ 409, "Conflict" },
+		{ 410, "Gone" },
+		{ 411, "Length Required" },
+		{ 412, "Precondition Failed" },
+		{ 413, "Request Entity Too Large" },
+		{ 414, "Request-URI Too Large" },
+		{ 415, "Unsupported Media Type" },
+		{ 416, "Requested range not satisfiable" },
+		{ 417, "Expectation Failed" },
+		{ 500, "Internal Server Error" },
+		{ 501, "Not Implemented" },
+		{ 502, "Bad Gateway" },
+		{ 503, "Service Unavailable" },
+		{ 504, "Gateway Time-out" },
+		{ 505, "HTTP Version not supported" }
+	};
+
+	return map.find(code).operator*().second;
 }
 
-void	HttpModule::_onHandleRequest(zany::Pipeline::Instance &i) {
+
+void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 	std::string	line;
 
 	std::getline(i.connection->stream(), line);
@@ -131,24 +179,97 @@ void	HttpModule::_afterHandleRequest(zany::Pipeline::Instance &i) {
 	}
 	if (!found) {
 		i.response.status = 404;
+	} else {
+		i.request.path = i.serverConfig["path"].value<zany::String>() + "/" + i.request.path;
 	}
 }
 
-void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
+bool	HttpModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i) const {
+	static constexpr std::array<const char*, 5> defexts{
+		".html",
+		".htm",
+		".txt",
+		".css",
+		".js"
+	};
+	auto	mext = boost::filesystem::extension(path);
+
+	for (const char *ext: defexts) {
+		if (mext == ext) {
+			return true;
+		} 
+	}
+
+	
+	try {
+		auto &cexts = i.serverConfig["exts"];
+		if (!cexts.isArray())
+			return false;
+		for (auto const &ext: cexts.value<zany::Array>()) {
+			if (ext.isString() && mext == ext.value<zany::String>()) {
+				return true;
+			}
+		}
+	} catch (...) {}
+	return false;
+}
+
+void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
+	if (boost::filesystem::is_directory(i.request.path)) {
+		for (auto &entry: boost::make_iterator_range(boost::filesystem::directory_iterator(i.request.path))) {
+			boost::filesystem::path	p(entry);
+			if (boost::filesystem::is_regular_file(p)
+			&& _isAllowedExt(p, i)
+			&& boost::to_lower_copy(p.stem().string()) == "index") {
+				i.request.path = p.string();
+			}
+		}
+	}
+
+
+	if (!boost::filesystem::is_regular_file(i.request.path)) {
+		i.response.status = 404;
+	} else if (!_isAllowedExt(i.request.path, i)) {
+		i.response.status = 403;
+	} else {
+		auto &fs = (i.properties["filestream"] = zany::Property::make<std::ifstream>(i.request.path)).get<std::ifstream>();
+
+		if (!fs.is_open()) {
+			i.response.status = 500;
+		}
+	}
+
 	auto &resp = i.response;
 	auto &stm = i.connection->stream();
 	
 	stm << resp.protocol << '/' << resp.protocolVersion
-		<< ' ' << resp.status << ' ' << "OK";
-	std::cout << resp.protocol << '/' << resp.protocolVersion
-		<< ' ' << resp.status << ' ' << "OK" << "\n";
+		<< ' ' << resp.status << ' ' << _getReasonPhrase(resp.status);
 	
 	for (auto &h: resp.headers) {
 		stm << "\r\n" << h.first << ": " << *h.second;
 	}
 	stm << "\r\n";
+	stm << "\r\n";
 }
-	
+
+void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
+	if (i.response.status == 200) {
+		auto 			&fs = i.properties["filestream"].get<std::ifstream>();
+		std::streamsize	sread;
+		char			buffer[1024];
+
+		try {
+			while ((sread = fs.readsome(buffer, sizeof(buffer)))) {
+				i.connection->stream().write(buffer, sread);
+			}
+		} catch (...) {
+			return;
+		}
+	} else {
+		i.connection->stream() << _getReasonPhrase(i.response.status) << "\r\n";
+	}
+}
+
 }
 
 extern "C" ZANY_DLL

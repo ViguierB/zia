@@ -7,7 +7,10 @@
 		{
 			"host": "localhost",
 			"port": 8080,
-			"path": "tests/def/"
+			"path": "../tests/def/",
+			"exts": [
+				".test"
+			]
 		},
 		{
 			"host": "localhost",
