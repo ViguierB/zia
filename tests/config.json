@@ -7,7 +7,7 @@
 		{
 			"host": "localhost",
 			"port": 8080,
-			"path": "../tests/def/",
+			"path": "def/",
 			"exts": [
 				".test"
 			]
@@ -15,7 +15,7 @@
 		{
 			"host": "localhost",
 			"port": 4433,
-			"path": "tests/defssl/",
+			"path": "defssl/",
 			"ssl": true
 		}
 	]

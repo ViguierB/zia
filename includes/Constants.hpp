@@ -15,10 +15,13 @@
 struct constant {
 	
 	static inline char const
-		*mainConfigPath = (zany::isWindows ? ".\\config.zia" : "/etc/zia/config.zia");
+		*defWorkDir = (zany::isWindows ? ".\\" : "/etc/zia/");
+
+	static inline char const
+		*mainConfigPath = (zany::isWindows ? "config.zia" : "config.zia");
 	
 	static inline char const
-		*parserPath = (zany::isWindows ? ".\\modules\\parser.dll" : "/etc/zia/modules/libparser.so");
+		*parserPath = (zany::isWindows ? "modules\\parser.dll" : "modules/libparser.so");
 	
 	static inline const std::uint16_t
 		defThreadNbr = 8;

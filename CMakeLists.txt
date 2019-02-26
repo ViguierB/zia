@@ -11,10 +11,9 @@ else ()
 	set(CMAKE_CXX_FLAGS_DEBUG
 		"${CMAKE_CXX_FLAGS_DEBUG} -ggdb -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter"
 	)
-	add_custom_command(
-		OUTPUT /tmp/out
-		COMMAND git submodule update --init --recursive
-	)
+	# execute_process(
+	# 	COMMAND git pull --recurse-submodules
+	# )
 endif ()
 
 
