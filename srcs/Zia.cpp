@@ -21,14 +21,37 @@
 namespace zia {
 
 void	Main::_bootstrap() {
-	std::vector<std::string>
-			def{ constant::parserPath };
-	auto	&pmodules =  _vm.count("modules")
+	auto	pmodules = _vm.count("modules")
 							? _vm["modules"].as<std::vector<std::string>>()
-							: def;
+							: std::vector<std::string>{};
 	bool	parsed = false;
 
 	boost::filesystem::current_path(_vm["work-dir"].as<std::string>());
+
+	boost::filesystem::path	p("./modules");
+		std::cout << "humm" << std::endl;
+	if(boost::filesystem::exists(p) && boost::filesystem::is_directory(p)) {
+		std::cout << "ok" << std::endl;
+
+		boost::filesystem::recursive_directory_iterator it(p);
+		boost::filesystem::recursive_directory_iterator endit;
+
+		while(it != endit)
+		{
+			if (
+			(boost::filesystem::is_regular_file(*it) || boost::filesystem::is_symlink(*it))
+			&& it->path().extension() ==
+#				if defined(ZANY_ISWINDOWS)
+					".dll"
+#				else
+					".so"
+#				endif
+			) {
+				pmodules.push_back(it->path().lexically_normal().string());
+			}
+			++it;
+		}
+	};
 
 	for (auto &pm : pmodules) {
 		loadModule(pm, [this, &parsed] (auto &module) {
