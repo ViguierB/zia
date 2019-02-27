@@ -41,9 +41,16 @@ void	PhpCgiModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	if (i.request.path.length() < 5 || i.request.path.substr(i.request.path.length() - 4, 4) != ".php")
 		return;
 
+	std::string cgiPath =
+		#if defined(ZANY_ISWINDOWS)
+			"tools/php-cgi.exe"
+		#else
+			"tools/php-cgi"
+		#endif
+			;
 	i.writerID = getUniqueId();
 	auto &is = (i.properties["php stream"] = zany::Property::make<boost ::process::ipstream>()).get<boost::process::ipstream>();
-	i.properties["php child"] = zany::Property::make<boost::process::child>(boost::process::search_path("php"), i.request.path, boost::process::std_out > is);
+	i.properties["php child"] = zany::Property::make<boost::process::child>("tools/php-cgi", i.request.path, boost::process::std_out > is);
 }
 
 void	PhpCgiModule::_onDataReady(zany::Pipeline::Instance &i) {

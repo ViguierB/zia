@@ -282,7 +282,6 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 		stm << "\r\n" << h.first << ": " << *h.second;
 	}
 	stm << "\r\n";
-	stm << "\r\n";
 }
 
 void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
@@ -291,9 +290,10 @@ void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	&& i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto 	&fs = i.properties["filestream"].get<std::ifstream>();
 
-		i.connection->stream() << fs.rdbuf();
+		i.connection->stream() << "\r\n" << fs.rdbuf();
 	} else if (i.writerID == 0) {
 		i.connection->stream()
+			<< "\r\n"
 			<< "<html><body><h2>"
 			<< i.response.status << " - "
 			<< _getReasonPhrase(i.response.status)
