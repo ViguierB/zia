@@ -20,8 +20,8 @@ public:
 		{ static const std::string name("Http"); return name; }
 	virtual void	init() final;
 private:
-	static inline void	_beforeHandleRequest(zany::Pipeline::Instance &i);
-	inline void			_afterHandleRequest(zany::Pipeline::Instance &i);
+	inline void			_beforeHandleRequest(zany::Pipeline::Instance &i);
+	inline void			_onHandleRequest(zany::Pipeline::Instance &i);
 	inline void			_beforeHandleResponse(zany::Pipeline::Instance &i);
 	inline void			_onHandleResponse(zany::Pipeline::Instance &i);
 	static inline auto	_getMethodeFromString(std::string &method);
@@ -33,10 +33,10 @@ private:
 
 void	HttpModule::init() {
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::BEFORE_HANDLE_REQUEST>()
-		.addTask<zany::Pipeline::Priority::HIGH>(&HttpModule::_beforeHandleRequest);
+		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&HttpModule::_beforeHandleRequest, this, std::placeholders::_1));
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_REQUEST>()
-		.addTask<zany::Pipeline::Priority::LOW>(std::bind(&HttpModule::_afterHandleRequest, this, std::placeholders::_1));
+		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&HttpModule::_onHandleRequest, this, std::placeholders::_1));
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::BEFORE_HANDLE_RESPONSE>()
 		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&HttpModule::_beforeHandleResponse, this, std::placeholders::_1));
@@ -138,6 +138,7 @@ void	HttpModule::_parsePath(zany::Pipeline::Instance &i, std::string const &path
 }
 
 void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
+	i.writerID = this->getUniqueId();
 	std::string	line;
 
 	i.connection->stream() >> std::ws;
@@ -190,7 +191,7 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 	}
 }
 
-void	HttpModule::_afterHandleRequest(zany::Pipeline::Instance &i) {
+void	HttpModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	auto	found = false;
 
 	for (auto &srv: master->getConfig()["server"].value<zany::Array>()) {
@@ -269,7 +270,6 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 			i.response.status = 500;
 		}
 
-		i.writerID = this->getUniqueId();
 	}
 
 	auto &resp = i.response;
@@ -289,15 +289,9 @@ void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	if (i.writerID == this->getUniqueId()
 	&& i.response.status == 200
 	&& i.request.method == zany::HttpRequest::RequestMethods::GET) {
-		auto 			&fs = i.properties["filestream"].get<std::ifstream>();
-		std::streamsize	sread;
-		char			buffer[1024];
+		auto 	&fs = i.properties["filestream"].get<std::ifstream>();
 
-		try {
-			i.connection->stream() << fs.rdbuf();
-		} catch (...) {
-			return;
-		}
+		i.connection->stream() << fs.rdbuf();
 	} else if (i.writerID == 0) {
 		i.connection->stream()
 			<< "<html><body><h2>"

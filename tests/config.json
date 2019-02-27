@@ -10,7 +10,8 @@
 			"path": "def/",
 			"exts": [
 				".test",
-				".txt"
+				".txt",
+				".php"
 			]
 		},
 		{
