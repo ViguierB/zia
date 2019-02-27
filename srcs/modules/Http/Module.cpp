@@ -146,16 +146,15 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 	{
 		line.erase(--line.end());
 		std::istringstream stm(line);
-		
 		std::string	str;
-		std::getline(stm, str, ' ');
-
+		
+		stm >> str;
 		i.request.method = _getMethodeFromString(str);
-		std::getline(stm, str, ' ');
+		
+		stm >> str;
 		HttpModule::_parsePath(i, str);
 
-		std::getline(stm, str, ' ');
-
+		stm >> str;
 		std::istringstream pstm(str);
 		std::string		proto;
 		
@@ -204,16 +203,27 @@ void	HttpModule::_afterHandleRequest(zany::Pipeline::Instance &i) {
 	if (!found) {
 		i.response.status = 404;
 	} else {
-		i.request.path = i.serverConfig["path"].value<zany::String>() + "/" + i.request.path;
+		i.request.path = boost::filesystem::path(i.request.path).lexically_normal().string();
+		if (i.request.path.substr(0, 3) == "../"
+		|| i.request.path.substr(0, 3) == "/.."
+		|| i.request.path.substr(0, 2) == "..") {
+			i.response.status = 403; /* try to access to sub-directory */
+		} else {
+			i.request.path = boost::filesystem::path(
+				i.serverConfig["path"].value<zany::String>() + "/" + i.request.path
+			).lexically_normal().string();
+		}
 	}
 }
 
 bool	HttpModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i) const {
-	static constexpr std::array<const char*, 4> defexts{
+	static constexpr std::array<const char*, 6> defexts{
 		".html",
 		".htm",
 		".css",
-		".js"
+		".js",
+		".json",
+		".xml",
 	};
 	auto	mext = boost::filesystem::extension(path);
 
@@ -223,7 +233,6 @@ bool	HttpModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeli
 		} 
 	}
 
-	
 	try {
 		auto &cexts = i.serverConfig["exts"];
 		if (!cexts.isArray())
@@ -243,20 +252,20 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 			boost::filesystem::path	p(entry);
 			if (boost::filesystem::is_regular_file(p)
 			&& boost::to_lower_copy(p.stem().string()) == "index") {
-				i.request.path = p.string();
+				i.request.path = p.lexically_normal().string();
 			}
 		}
 	}
 
-
-	if (!boost::filesystem::is_regular_file(i.request.path)) {
+	if (i.response.status != 200) {
+	} else if (!boost::filesystem::is_regular_file(i.request.path)) {
 		i.response.status = 404;
 	} else if (!_isAllowedExt(i.request.path, i)) {
 		i.response.status = 403;
 	} else if (i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto &fs = (i.properties["filestream"] = zany::Property::make<std::ifstream>(i.request.path)).get<std::ifstream>();
 
-		if (!fs.is_open()) {
+		if (fs.bad()) {
 			i.response.status = 500;
 		}
 
@@ -277,22 +286,21 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 }
 
 void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
-	if (i.writerID != this->getUniqueId())
-		return;
-	if (i.response.status == 200 && i.request.method == zany::HttpRequest::RequestMethods::GET) {
+	if (i.writerID == this->getUniqueId()
+	&& i.response.status == 200
+	&& i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto 			&fs = i.properties["filestream"].get<std::ifstream>();
 		std::streamsize	sread;
 		char			buffer[1024];
 
 		try {
-			while ((sread = fs.readsome(buffer, sizeof(buffer)))) {
-				i.connection->stream().write(buffer, sread);
-			}
+			i.connection->stream() << fs.rdbuf();
 		} catch (...) {
 			return;
 		}
-	} else {
-		i.connection->stream() << "<html><body><h2>"
+	} else if (i.writerID == 0) {
+		i.connection->stream()
+			<< "<html><body><h2>"
 			<< i.response.status << " - "
 			<< _getReasonPhrase(i.response.status)
 				<< "</h2></body></html>\r\n";

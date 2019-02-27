@@ -54,8 +54,6 @@ void	Main::_bootstrap() {
 	if (parsed == false) {
 		_config = constant::defConfig.clone();
 	}
-
-	std::cout << "Ready" << std::endl;
 }
 
 void	Main::run(int ac, char **av) {
@@ -97,7 +95,12 @@ void	Main::run(int ac, char **av) {
 		throw std::runtime_error("Critical error: No core module loaded !");
 	}
 
+	_ctx.addTask([] { std::cout << "Ready" << std::endl; });
 	_ctx.run();
+}
+
+void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
+	std::cerr << "Error: " << exception.what() << std::endl;
 }
 
 }

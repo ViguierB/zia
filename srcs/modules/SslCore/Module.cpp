@@ -87,7 +87,9 @@ void	CoreSslModule::_startPipeline(zany::Connection::SharedInstance c) {
 	constexpr auto sp = &zany::Orchestrator::startPipeline;
 
 	try {
+		std::cout << "hummm-1" << std::endl;
 		(this->master->*sp)(c);
+		std::cout << "hummm-2" << std::endl;
 	} catch (std::exception &e) {
 		std::cerr
 			<< "Connection rejected because of internal server error:\n\t"
