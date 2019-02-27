@@ -29,10 +29,7 @@ void	Main::_bootstrap() {
 	boost::filesystem::current_path(_vm["work-dir"].as<std::string>());
 
 	boost::filesystem::path	p("./modules");
-		std::cout << "humm" << std::endl;
 	if(boost::filesystem::exists(p) && boost::filesystem::is_directory(p)) {
-		std::cout << "ok" << std::endl;
-
 		boost::filesystem::recursive_directory_iterator it(p);
 		boost::filesystem::recursive_directory_iterator endit;
 
