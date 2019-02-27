@@ -290,7 +290,7 @@ void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	&& i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto 	&fs = i.properties["filestream"].get<std::ifstream>();
 
-		i.connection->stream() << "\r\n" << fs.rdbuf();
+		i.connection->stream() << "\r\n" << fs.rdbuf() << "\r\n";;
 	} else if (i.writerID == 0) {
 		i.connection->stream()
 			<< "\r\n"

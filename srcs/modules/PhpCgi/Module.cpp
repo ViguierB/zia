@@ -50,7 +50,7 @@ void	PhpCgiModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 			;
 	i.writerID = getUniqueId();
 	auto &is = (i.properties["php stream"] = zany::Property::make<boost ::process::ipstream>()).get<boost::process::ipstream>();
-	i.properties["php child"] = zany::Property::make<boost::process::child>("tools/php-cgi", i.request.path, boost::process::std_out > is);
+	i.properties["php child"] = zany::Property::make<boost::process::child>(cgiPath, i.request.path, boost::process::std_out > is);
 }
 
 void	PhpCgiModule::_onDataReady(zany::Pipeline::Instance &i) {
