@@ -11,10 +11,6 @@
 			"preLaunchTask": "build-debug",
 			"program": "${workspaceFolder}/build-Linux/bin/zia",
 			"args": [
-				"--work-dir", "./tests",
-				"--modules", "../build-Linux/lib/libJsonParserModule.so",
-				"--modules", "../build-Linux/lib/libSslCoreModule.so",
-				"--modules", "../build-Linux/lib/libHttpModule.so",
 				"--config", "./config.json"
 			],
 			"stopAtEntry": false,

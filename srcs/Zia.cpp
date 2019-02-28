@@ -21,14 +21,44 @@
 namespace zia {
 
 void	Main::_bootstrap() {
-	std::vector<std::string>
-			def{ constant::parserPath };
-	auto	&pmodules =  _vm.count("modules")
+	auto	pmodules = _vm.count("modules")
 							? _vm["modules"].as<std::vector<std::string>>()
-							: def;
+							: std::vector<std::string>{};
 	bool	parsed = false;
 
 	boost::filesystem::current_path(_vm["work-dir"].as<std::string>());
+
+	boost::filesystem::path	p("./modules");
+	if(boost::filesystem::exists(p) && boost::filesystem::is_directory(p)) {
+		boost::filesystem::recursive_directory_iterator it(p);
+		boost::filesystem::recursive_directory_iterator endit;
+
+		while(it != endit)
+		{
+			if (
+			(boost::filesystem::is_regular_file(*it) || boost::filesystem::is_symlink(*it))
+			&& it->path().extension() ==
+#				if defined(ZANY_ISWINDOWS)
+					".dll"
+#				else
+					".so"
+#				endif
+			) {
+				auto mp =
+#				if defined(ZANY_ISWINDOWS)
+					it->path().lexically_normal();
+#				else
+					boost::filesystem::path(
+						boost::filesystem::current_path().string() +
+						boost::filesystem::read_symlink(it->path()).string()
+					).lexically_normal()
+#				endif
+				;
+				pmodules.push_back(mp.string());
+			}
+			++it;
+		}
+	};
 
 	for (auto &pm : pmodules) {
 		loadModule(pm, [this, &parsed] (auto &module) {
@@ -54,8 +84,6 @@ void	Main::_bootstrap() {
 	if (parsed == false) {
 		_config = constant::defConfig.clone();
 	}
-
-	std::cout << "Ready" << std::endl;
 }
 
 void	Main::run(int ac, char **av) {
@@ -97,7 +125,12 @@ void	Main::run(int ac, char **av) {
 		throw std::runtime_error("Critical error: No core module loaded !");
 	}
 
+	_ctx.addTask([] { std::cout << "Ready" << std::endl; });
 	_ctx.run();
+}
+
+void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
+	std::cerr << "Error: " << exception.what() << std::endl;
 }
 
 }

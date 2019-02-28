@@ -9,14 +9,24 @@
 			"port": 8080,
 			"path": "def/",
 			"exts": [
-				".test"
+				".test",
+				".txt",
+				".php"
 			]
 		},
 		{
 			"host": "localhost",
 			"port": 4433,
-			"path": "defssl/",
-			"ssl": true
+			"path": "def/",
+			"ssl": {
+				"certificate": "cert/server.pem",
+				"private-key": "cert/server.pem"
+			},
+			"exts": [
+				".test",
+				".txt",
+				".php"
+			]
 		}
 	]
 }

@@ -44,6 +44,7 @@ target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
 set(JSONPARSER_NAME JsonParserModule)
 set(HTTP_NAME HttpModule)
 set(SSLCORE_NAME SslCoreModule)
+set(PHPCGI_NAME PhpCgiModule)
 
 set(JSONPARSER_MODULE_SRCS
 	zany/lib/Zany.hpp
@@ -57,6 +58,11 @@ set(HTTP_MODULE_SRCS
 	srcs/modules/Http/Module.cpp
 )
 
+set(PHPCGI_MODULE_SRCS
+		zany/lib/Zany.hpp
+		srcs/modules/PhpCgi/Module.cpp
+)
+
 set(SSLCORE_MODULE_SRCS
 	zany/lib/Zany.hpp
 	srcs/modules/SslCore/Module.cpp
@@ -66,5 +72,7 @@ set(SSLCORE_MODULE_SRCS
 add_library(${JSONPARSER_NAME} SHARED ${JSONPARSER_MODULE_SRCS})
 add_library(${HTTP_NAME} SHARED ${HTTP_MODULE_SRCS})
 add_library(${SSLCORE_NAME} SHARED ${SSLCORE_MODULE_SRCS})
+add_library(${PHPCGI_NAME} SHARED ${PHPCGI_MODULE_SRCS})
 target_link_libraries(${SSLCORE_NAME} ${CONAN_LIBS})
 target_link_libraries(${HTTP_NAME} ${CONAN_LIBS})
+target_link_libraries(${PHPCGI_NAME} ${CONAN_LIBS})

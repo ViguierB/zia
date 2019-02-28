@@ -9,3 +9,9 @@ Makefile
 CMakeFiles
 zia
 zia.cbp
+a.out
+conanbuildinfo.cmake
+conanbuildinfo.txt
+conaninfo.txt
+graph_info.json
+lib

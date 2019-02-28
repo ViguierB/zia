@@ -21,6 +21,8 @@ public:
 	virtual auto	getConfig() const -> const zany::Entity final { return _config; }
 	void			run(int ac, char **av);
 	void			startPipeline(zany::Connection::SharedInstance c);
+protected:
+	virtual void	onPipelineThrow(PipelineExecutionError const &exception) final;
 private:
 	void			_listening();
 	void			_bootstrap();
