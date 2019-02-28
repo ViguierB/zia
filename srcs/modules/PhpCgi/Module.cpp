@@ -24,7 +24,6 @@ private:
 	inline void		_onHandleRequest(zany::Pipeline::Instance &i);
 	inline void		_onDataReady(zany::Pipeline::Instance &i);
 	inline void		_onHandleResponse(zany::Pipeline::Instance &i);
-	inline void		_beforeCloseSocket(zany::Pipeline::Instance &i);
 
 	inline boost::process::environment		_fillCgiEnv(zany::Pipeline::Instance &i);
 };
@@ -38,9 +37,6 @@ void	PhpCgiModule::init() {
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_RESPONSE>()
 		.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&PhpCgiModule::_onHandleResponse, this, std::placeholders::_1));
-
-	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::BEFORE_CLOSE_SOCKET>()
-		.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&PhpCgiModule::_beforeCloseSocket, this, std::placeholders::_1));
 }
 
 boost::process::environment		PhpCgiModule::_fillCgiEnv(zany::Pipeline::Instance &inst) {
@@ -74,12 +70,12 @@ void	PhpCgiModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 		return;
 
 	std::string cgiPath =
-		#if defined(ZANY_ISWINDOWS)
-			"tools/php-cgi.exe"
-		#else
-			"tools/php-cgi"
-		#endif
-			;
+#	if defined(ZANY_ISWINDOWS)
+		"tools/php-cgi.exe"
+#	else
+		"tools/php-cgi"
+#	endif
+	;
 	i.writerID = getUniqueId();
 	auto &ins = (i.properties["php_cin"] = zany::Property::make<boost::process::opstream>()).get<boost::process::opstream>();
 	auto &outs = (i.properties["php_cout"] = zany::Property::make<boost::process::ipstream>()).get<boost::process::ipstream>();
@@ -132,10 +128,6 @@ void	PhpCgiModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	auto &stm = i.properties["php_cout"].get<boost::process::ipstream>();
 
 	i.connection->stream() << stm.rdbuf();
-}
-
-void	PhpCgiModule::_beforeCloseSocket(zany::Pipeline::Instance &i) {
-	i.properties["php_cgi"].get<boost::process::child>().wait();
 }
 
 }
