@@ -44,7 +44,17 @@ void	Main::_bootstrap() {
 					".so"
 #				endif
 			) {
-				pmodules.push_back(it->path().lexically_normal().string());
+				auto mp =
+#				if defined(ZANY_ISWINDOWS)
+					it->path().it->path().lexically_normal();
+#				else
+					boost::filesystem::path(
+						boost::filesystem::current_path().string() +
+						boost::filesystem::read_symlink(it->path()).string()
+					).lexically_normal()
+#				endif
+				;
+				pmodules.push_back(mp.string());
 			}
 			++it;
 		}

@@ -17,8 +17,16 @@
 		{
 			"host": "localhost",
 			"port": 4433,
-			"path": "defssl/",
-			"ssl": true
+			"path": "def/",
+			"ssl": {
+				"certificate": "cert/server.pem",
+				"private-key": "cert/server.pem"
+			},
+			"exts": [
+				".test",
+				".txt",
+				".php"
+			]
 		}
 	]
 }

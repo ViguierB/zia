@@ -60,6 +60,7 @@
 		"complex": "cpp",
 		"new": "cpp",
 		"algorithm": "cpp",
-		"*.ipp": "cpp"
+		"*.ipp": "cpp",
+		"slist": "cpp"
 	}
 }

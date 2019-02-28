@@ -7,6 +7,8 @@
 
 #include <fstream>
 #include <thread>
+#include <unordered_map>
+#include <boost/filesystem.hpp>
 #include "./Listener.hpp"
 #include "Zany.hpp"
 
@@ -23,16 +25,11 @@ public:
 		_signals.async_wait(boost::bind(&CoreSslModule::_onSignal, this));
 	}
 
-	~CoreSslModule() {
-		_ios.stop();
-		if (_t) {
-			_t->join();
-		}
-	}
+	~CoreSslModule();
 
 	virtual auto	name() const -> const std::string&
 		{ static const std::string name("CoreSsl"); return name; }
-	virtual void	init() {};
+	virtual void	init();
 	virtual bool	isACoreModule() final { return true; }
 	virtual void	startListening(std::vector<std::uint16_t> &ports) final;
 private:
@@ -45,6 +42,19 @@ private:
 	std::unique_ptr<std::thread>	_t;
 	boost::asio::signal_set			_signals;
 };
+
+void	CoreSslModule::init() { 
+    SSL_load_error_strings();	
+    OpenSSL_add_ssl_algorithms();
+}
+
+CoreSslModule::~CoreSslModule() {
+	_ios.stop();
+	if (_t) {
+		_t->join();
+	}
+	EVP_cleanup();
+}
 
 void	CoreSslModule::_onSignal() {
 	std::cout << "Closing..." << std::endl;
@@ -74,6 +84,7 @@ void	CoreSslModule::_listening(std::condition_variable &cv) {
 			this->master->getContext().addTask(std::bind(&CoreSslModule::_startPipeline, this, c));
 		};
 
+		v6listener.initVHostConfig(master->getConfig());
 		v6listener.startAccept();
 		std::cout << "Starting listener on port " << port << std::endl;
 	}
@@ -84,10 +95,11 @@ void	CoreSslModule::_listening(std::condition_variable &cv) {
 }
 
 void	CoreSslModule::_startPipeline(zany::Connection::SharedInstance c) {
-	constexpr auto sp = &zany::Orchestrator::startPipeline;
+	constexpr auto	sp = &zany::Orchestrator::startPipeline;
+	auto			&connection = Listener::Connection::fromZany(*c);
 
 	try {
-		(this->master->*sp)(c);
+		(this->master->*sp)(c, std::bind(&Listener::Connection::doHandshake, &connection, std::placeholders::_1));
 	} catch (std::exception &e) {
 		std::cerr
 			<< "Connection rejected because of internal server error:\n\t"
