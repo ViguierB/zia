@@ -11,6 +11,7 @@
 #include "Zany/Loader.hpp"
 #include "Zany/Pipeline.hpp"
 #include "Zany/Orchestrator.hpp"
+#include "../common/ModulesUtils.hpp"
 
 namespace zia {
 
@@ -43,29 +44,6 @@ void	HttpModule::init() {
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_RESPONSE>()
 		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&HttpModule::_onHandleResponse, this, std::placeholders::_1));
-}
-
-auto HttpModule::_getMethodeFromString(std::string &method) {
-	if (method == "GET") {
-		return zany::HttpRequest::RequestMethods::GET;
-	} else if (method == "POST") {
-		return zany::HttpRequest::RequestMethods::POST;
-	} else if (method == "HEAD") {
-		return zany::HttpRequest::RequestMethods::HEAD;
-	} else if (method == "OPTION") {
-		return zany::HttpRequest::RequestMethods::OPTIONS;
-	} else if (method == "PATCH") {
-		return zany::HttpRequest::RequestMethods::PATCH;
-	} else if (method == "CONNECT") {
-		return zany::HttpRequest::RequestMethods::CONNECT;
-	} else if (method == "PUT") {
-		return zany::HttpRequest::RequestMethods::PUT;
-	} else if (method == "TRACE") {
-		return zany::HttpRequest::RequestMethods::TRACE;
-	} else if (method == "DELETE") {
-		return zany::HttpRequest::RequestMethods::DELETE;
-	}
-	return zany::HttpRequest::RequestMethods::ERROR;
 }
 
 const std::string	&HttpModule::_getReasonPhrase(int code) {
@@ -123,8 +101,8 @@ void	HttpModule::_parsePath(zany::Pipeline::Instance &i, std::string const &path
 
 	i.request.path = std::string(path.begin(), path.begin() + endPathPos);
 	if (c == '?') {
-
-		std::istringstream	sstm(std::string(path.begin() + endPathPos + 1, path.end()));
+		i.request.fullQuery = std::string(path.begin() + endPathPos + 1, path.end());
+		std::istringstream	sstm(i.request.fullQuery);
 		std::string			param;
 
 		while (std::getline(sstm, param, '&')) {
@@ -132,7 +110,7 @@ void	HttpModule::_parsePath(zany::Pipeline::Instance &i, std::string const &path
 
 			std::istringstream	pstm(param);
 			std::getline(pstm, key, '=');
-			std::getline(pstm, i.request.params[key]);
+			std::getline(pstm, i.request.query[key]);
 		}
 	}
 }
@@ -150,7 +128,8 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 		std::string	str;
 		
 		stm >> str;
-		i.request.method = _getMethodeFromString(str);
+		i.request.method = ModuleUtils::getMethodFromString(str);
+		i.request.methodString = str;
 		
 		stm >> str;
 		HttpModule::_parsePath(i, str);
@@ -175,6 +154,7 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 		std::string			key;
 
 		std::getline(splitor, key, ':');
+		boost::to_lower(key);
 		auto &value = *i.request.headers[key];
 		std::getline(splitor, value);
 		boost::trim(value);
