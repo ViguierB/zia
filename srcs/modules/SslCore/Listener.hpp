@@ -235,7 +235,6 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 		typedef int (*callback_t)(SSL*,int*,decltype(data)*);
 		static callback_t callback = [] (SSL *ssl, int *, decltype(data)*cap) -> int {
 			const char *hostname = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
-			std::cout << hostname << std::endl;
 			
 			auto vhit = cap->co->parent()->vhostsConfigs.find(hostname);
 			if (vhit == cap->co->parent()->vhostsConfigs.end()) return 1;

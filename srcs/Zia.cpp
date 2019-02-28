@@ -46,7 +46,7 @@ void	Main::_bootstrap() {
 			) {
 				auto mp =
 #				if defined(ZANY_ISWINDOWS)
-					it->path().it->path().lexically_normal();
+					it->path().lexically_normal();
 #				else
 					boost::filesystem::path(
 						boost::filesystem::current_path().string() +
