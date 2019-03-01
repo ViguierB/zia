@@ -15,3 +15,4 @@ conanbuildinfo.txt
 conaninfo.txt
 graph_info.json
 lib
+!zany/lib
