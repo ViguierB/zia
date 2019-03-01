@@ -271,7 +271,7 @@ void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 		auto 	&fs = i.properties["filestream"].get<std::ifstream>();
 
 		i.connection->stream() << "\r\n" << fs.rdbuf() << "\r\n";;
-	} else if (i.writerID == 0) {
+	} else if (i.writerID == 0 || i.writerID == this->getUniqueId()) {
 		i.connection->stream()
 			<< "\r\n"
 			<< "<html><body><h2>"
