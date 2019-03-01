@@ -22,8 +22,11 @@
 namespace zia {
 
 struct	VirtualServersConfig {
+	~VirtualServersConfig() { if (sslContext) ::SSL_CTX_free(sslContext); }
+
 	std::string		hostname;
 	std::uint16_t	port;
+	std::string		certificateChainFile;
 	std::string		certificateFile;
 	std::string		privateKeyFile;
 	SSL_CTX 		*sslContext;
@@ -41,7 +44,11 @@ struct	VirtualServersConfig {
 
 		SSL_CTX_set_ecdh_auto(ctx, 1);
 
-		if (::SSL_CTX_use_certificate_chain_file(ctx, this->certificateFile.c_str()) <= 0) {
+		if (::SSL_CTX_use_certificate_chain_file(ctx, this->certificateChainFile.c_str()) <= 0) {
+			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+		}
+
+		if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
 
@@ -82,6 +89,8 @@ public:
 		auto	isSslDisabled() { return disableSsl; }
 
 		struct SslUtils {
+			~SslUtils() { if (ssl) ::SSL_free(ssl); }
+
 			SSL		*ssl;
 			SSL_CTX	*ref_ctx;
 		};
@@ -155,6 +164,8 @@ public:
 		}
 	}
 
+	//~Listener() { if (_baseCtx) ::SSL_CTX_free(_baseCtx); }
+
 	void startAccept() {
 		auto nc = Connection::make(_acceptor.get_io_service(), this);
 
@@ -191,12 +202,21 @@ public:
 				auto targetPort = (std::uint16_t)vhost["port"].to<int>();
 				if (targetPort != _acceptor.local_endpoint().port())
 					continue;
+				
+				
+				std::string const *chainfile;
+				try {
+					chainfile = &(sslc["certificate-chain"].value<zany::String>());
+				} catch (...) {
+					chainfile = &(sslc["certificate"].value<zany::String>());
+				}
 				auto vhit = vhostsConfigs.emplace(
 					std::pair<std::string, VirtualServersConfig>(
 						vhost["host"].value<zany::String>(),
 						VirtualServersConfig {
 							vhost["host"].value<zany::String>(),
 							targetPort,
+							*chainfile,
 							sslc["certificate"].value<zany::String>(),
 							sslc["private-key"].value<zany::String>(),
 							nullptr
