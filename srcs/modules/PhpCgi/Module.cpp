@@ -77,9 +77,10 @@ void	PhpCgiModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 #	endif
 	;
 	i.writerID = getUniqueId();
+	auto &ios = (i.properties["php_ios"] = zany::Property::make<boost::asio::io_context>()).get<boost::asio::io_context>();
 	auto &ins = (i.properties["php_cin"] = zany::Property::make<boost::process::opstream>()).get<boost::process::opstream>();
-	auto &outs = (i.properties["php_cout"] = zany::Property::make<boost::process::ipstream>()).get<boost::process::ipstream>();
-	auto &errs = (i.properties["php_cerr"] = zany::Property::make<boost::process::ipstream>()).get<boost::process::ipstream>();
+	auto &outs = (i.properties["php_cout"] = zany::Property::make<boost::process::async_pipe>(ios)).get<boost::process::async_pipe>();
+	auto &errs = (i.properties["php_cerr"] = zany::Property::make<boost::process::async_pipe>(ios)).get<boost::process::async_pipe>();
 	i.properties["php_cgi"] = zany::Property::make<boost::process::child>(
 		cgiPath,
 		i.request.path,
@@ -125,9 +126,33 @@ void	PhpCgiModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	if (i.writerID != getUniqueId())
 		return;
 
-	auto &stm = i.properties["php_cout"].get<boost::process::ipstream>();
+	std::vector<char>	buf;
+	auto 				&ios = i.properties["php_ios"].get<boost::asio::io_context>();
+	auto 				&cout = i.properties["php_cout"].get<boost::process::async_pipe>();
+	auto 				&cerr = i.properties["php_cerr"].get<boost::process::async_pipe>();
 
-	i.connection->stream() << stm.rdbuf();
+
+	boost::asio::async_read(cout, boost::asio::buffer(buf),
+	[&](const boost::system::error_code &ec, std::size_t size) {
+		if (ec) {
+			ios.stop();
+		}
+		i.connection->stream().write(buf.data(), size);
+	});
+
+	boost::asio::async_read(cerr, boost::asio::buffer(buf),
+	[&](const boost::system::error_code &ec, std::size_t size) {
+		if (ec) {
+			ios.stop();
+		}
+		std::cerr << "php-cgi: ";
+		std::cerr.write(buf.data(), size);
+		std::cerr << std::endl;
+
+		i.connection->stream() << "/r/n";
+	});
+
+	ios.run();
 }
 
 }
