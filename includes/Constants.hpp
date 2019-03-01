@@ -34,4 +34,6 @@ struct constant {
 			{ "server", zany::makeArray{} }
 		};
 
+	static inline const auto *defSslProtocol = "ALL,-TLSv1";
+
 };
