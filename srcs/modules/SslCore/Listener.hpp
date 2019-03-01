@@ -41,7 +41,7 @@ struct	VirtualServersConfig {
 
 		SSL_CTX_set_ecdh_auto(ctx, 1);
 
-		if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
+		if (::SSL_CTX_use_certificate_chain_file(ctx, this->certificateFile.c_str()) <= 0) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
 
