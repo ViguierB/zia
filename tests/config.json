@@ -1,7 +1,7 @@
 {
 	"listen": [
 		8080,
-		4433
+		4434
 	],
 	"server": [
 		{
@@ -16,7 +16,7 @@
 		},
 		{
 			"host": "localhost",
-			"port": 4433,
+			"port": 4434,
 			"path": "def/",
 			"ssl": {
 				"certificate": "cert/server.pem",

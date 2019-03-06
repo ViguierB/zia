@@ -106,16 +106,17 @@ void	PhpCgiModule::_onDataReady(zany::Pipeline::Instance &i) {
 	std::streamsize		sread;
 	auto				&phpostream = i.properties["php_cin"].get<boost::process::opstream>();
 
-
 	while (contentlen > 0) {
+		i.connection->stream().get(*buffer);
+		if (*buffer == EOF) { return; }
+		--contentlen;
 		sread = i.connection->stream().readsome(
-			buffer,
-			sizeof(buffer) <= contentlen
-				? sizeof(buffer)
+			buffer + 1,
+			sizeof(buffer) - 1 <= contentlen
+				? sizeof(buffer) - 1
 				: contentlen
 		);
-		
-		phpostream.write(buffer, sread);
+		phpostream.write(buffer, sread + 1);
 		contentlen -= sread;
 	}
 	phpostream.flush();

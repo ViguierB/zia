@@ -81,14 +81,14 @@ void	CoreSslModule::_listening(std::condition_variable &cv) {
 		);
 
 		v6listener->onHandleAccept = [this] (zany::Connection::SharedInstance c) {
-			boost::asio::ip::v6_only option;
+			// boost::asio::ip::v6_only option;
 
-			Listener::Connection::fromZany(*c).socket().get_option(option);
-			if (option.value() == true) {
-				boost::asio::ip::v6_only noption(false);
+			// Listener::Connection::fromZany(*c).socket().get_option(option);
+			// if (option.value() == true) {
+			// 	boost::asio::ip::v6_only noption(false);
 
-				Listener::Connection::fromZany(*c).socket().set_option(noption);
-			}
+			// 	Listener::Connection::fromZany(*c).socket().set_option(noption);
+			// }
 			this->master->getContext().addTask(std::bind(&CoreSslModule::_startPipeline, this, c));
 		};
 
