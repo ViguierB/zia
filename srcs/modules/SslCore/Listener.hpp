@@ -184,7 +184,7 @@ public:
 				_parent(parent) {}
 
 		boost::asio::ip::tcp::socket	_socket;
-		std::unique_ptr<boost::iostreams::stream_buffer<SslTcpBidirectionalIoStream<int>>>
+		std::unique_ptr<boost::iostreams::stream_buffer<SslTcpBidirectionalIoStream<boost::asio::detail::socket_type>>>
 										_sslstream;
 		std::unique_ptr<std::iostream>	_stream;
 		zany::evt::HdlCollector			_collector;

@@ -68,6 +68,7 @@ boost::process::environment		PhpCgiModule::_fillCgiEnv(zany::Pipeline::Instance 
 void	PhpCgiModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	if (i.request.path.length() < 5 || i.request.path.substr(i.request.path.length() - 4, 4) != ".php")
 		return;
+	if (!boost::filesystem::is_regular_file(i.request.path)) return;
 
 	std::string cgiPath =
 #	if defined(ZANY_ISWINDOWS)

@@ -15,7 +15,7 @@
 			]
 		},
 		{
-			"host": "localhost",
+			"host": "secure.localhost",
 			"port": 4433,
 			"path": "def/",
 			"ssl": {
@@ -27,6 +27,24 @@
 				".txt",
 				".php"
 			]
+		},
+		{
+			"host": "reverse.localhost",
+			"port": 8080,
+			"reverse-proxy": {
+				"host": "www.google.com",
+				"port": 80,
+				"scheme": "http"
+			}
+		},
+		{
+			"host": "test.reverse.localhost",
+			"port": 8080,
+			"reverse-proxy": {
+				"host": "localhost",
+				"port": 8888,
+				"scheme": "http"
+			}
 		}
 	]
 }

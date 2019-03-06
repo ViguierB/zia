@@ -34,6 +34,21 @@ struct ModuleUtils {
 		}
 		return zany::HttpRequest::RequestMethods::ERROR;
 	}
+
+	// static auto getMethodString(zany::HttpRequest::RequestMethods method) {
+	// 	switch (method) {
+	// 		case (zany::HttpRequest::RequestMethods::GET): return "GET";
+	// 		case (zany::HttpRequest::RequestMethods::POST): return "POST";
+	// 		case (zany::HttpRequest::RequestMethods::HEAD): return "HEAD";
+	// 		case (zany::HttpRequest::RequestMethods::OPTIONS): return "OPTIONS";
+	// 		case (zany::HttpRequest::RequestMethods::PATCH): return "PATCH";
+	// 		case (zany::HttpRequest::RequestMethods::CONNECT): return "CONNECT";
+	// 		case (zany::HttpRequest::RequestMethods::PUT): return "PUT";
+	// 		case (zany::HttpRequest::RequestMethods::TRACE): return "TRACE";
+	// 		case (zany::HttpRequest::RequestMethods::DELETE): return "DELETE";
+	// 		default: return "ERROR";
+	// 	}
+	// }
 };
 
 }
