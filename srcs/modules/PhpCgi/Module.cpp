@@ -95,7 +95,7 @@ void	PhpCgiModule::_onDataReady(zany::Pipeline::Instance &i) {
 	if (i.writerID != getUniqueId() || i.request.method != zany::HttpRequest::RequestMethods::POST)
 		return;
 	auto it = i.request.headers.find("content-length");
-	if (it == i.request.headers.end() && it->second.isNumber()) {
+	if (it == i.request.headers.end() || !it->second.isNumber()) {
 		i.response.status = 400;
 		i.writerID = 0;
 		return;
@@ -107,16 +107,13 @@ void	PhpCgiModule::_onDataReady(zany::Pipeline::Instance &i) {
 	auto				&phpostream = i.properties["php_cin"].get<boost::process::opstream>();
 
 	while (contentlen > 0) {
-		i.connection->stream().get(*buffer);
-		if (*buffer == EOF) { return; }
-		--contentlen;
-		sread = i.connection->stream().readsome(
-			buffer + 1,
-			sizeof(buffer) - 1 <= contentlen
-				? sizeof(buffer) - 1
+		sread = i.connection->stream().rdbuf()->sgetn(
+			buffer,
+			sizeof(buffer) <= contentlen
+				? sizeof(buffer)
 				: contentlen
 		);
-		phpostream.write(buffer, sread + 1);
+		phpostream.write(buffer, sread);
 		contentlen -= sread;
 	}
 	phpostream.flush();

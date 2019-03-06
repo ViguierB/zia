@@ -33,7 +33,7 @@ namespace zia {
 
 struct	VirtualServersConfig {
 	~VirtualServersConfig() {
-		
+		::SSL_CTX_free(ctx);
 	}
 
 	std::string		hostname;
@@ -42,32 +42,34 @@ struct	VirtualServersConfig {
 	std::string		certificateFile;
 	std::string		privateKeyFile;
 	std::string		protocol;
+	SSL_CTX			*ctx;
 
-	void init(SSL *ssl) {
-		// const SSL_METHOD	*method;
-		// //SSL_CONF_CTX		*cctx;
-
-		// method = ::SSLv23_server_method();
+	void init() {
 		// cctx = ::SSL_CONF_CTX_new();
-		// ctx = ::SSL_CTX_new(method);
+		ctx = ::SSL_CTX_new(::SSLv23_server_method());
 		// if (!ctx || !method || !cctx) {
 		// 	throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		// }
 
+		SSL_CTX_set_ecdh_auto(ctx, 1);
 
-		// if (!this->certificateChainFile.empty()) {
-		// 	if (::SSL_use_certificate_chain_file(ssl, this->certificateChainFile.c_str()) <= 0) {
-		// 		throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
-		// 	}
-		// }
+		if (!this->certificateChainFile.empty()) {
+			if (::SSL_CTX_use_certificate_chain_file(ctx, this->certificateChainFile.c_str()) <= 0) {
+				throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+			}
+		}
 
-		if (::SSL_use_certificate_file(ssl, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
+		if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
 
-		if (::SSL_use_PrivateKey_file(ssl, this->privateKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0 ) {
+		if (::SSL_CTX_use_PrivateKey_file(ctx, this->privateKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0 ) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
+	}
+
+	void link(SSL *ssl) {
+		::SSL_set_SSL_CTX(ssl, ctx);
 	}
 };
 
@@ -193,21 +195,12 @@ public:
 	template<typename PVERSION>
 	Listener(PVERSION pv, boost::asio::io_service& ios, std::uint16_t port)
 	: _acceptor(ios, boost::asio::ip::tcp::endpoint(std::forward<PVERSION>(pv), port)) {
-		const SSL_METHOD	*method;
+		_baseCtx = ::SSL_CTX_new(::SSLv23_server_method());
 
-		method = ::SSLv23_server_method();
-		//_baseCtxConf = ::SSL_CONF_CTX_new();
-		_baseCtx = ::SSL_CTX_new(method);
-		if (!_baseCtx || !method) {
+		if (!_baseCtx) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
-
-		// ::SSL_CONF_CTX_set_ssl_ctx(_baseCtxConf, _baseCtx);
-		// ::SSL_CONF_cmd(_baseCtxConf, "Protocol", protocol.c_str());
-		// ::SSL_CONF_CTX_finish(_baseCtxConf);
-
 		SSL_CTX_set_ecdh_auto(_baseCtx, 1);
-
 	}
 
 	~Listener() {
@@ -274,7 +267,7 @@ public:
 						}
 					)
 				);
-				//vhit->second.init();
+				vhit->second.init();
 			} catch (std::exception const &e) {
 				std::cerr << e.what() << std::endl;
 			}
@@ -312,7 +305,8 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 			if (vhit == cap->co->parent()->vhostsConfigs.end()) return 1;
 
 			
-			vhit->second.init(ssl);
+			vhit->second.link(ssl);
+
 			return 0;
 		};
 
