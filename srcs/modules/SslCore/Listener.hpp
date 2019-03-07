@@ -34,9 +34,9 @@ struct	VirtualServersConfig {
 	void init() {
 		// cctx = ::SSL_CONF_CTX_new();
 		ctx = ::SSL_CTX_new(::SSLv23_server_method());
-		// if (!ctx || !method || !cctx) {
-		// 	throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
-		// }
+		if (!ctx) {
+		 	throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+		}
 
 		SSL_CTX_set_ecdh_auto(ctx, 1);
 
@@ -44,10 +44,11 @@ struct	VirtualServersConfig {
 			if (::SSL_CTX_use_certificate_chain_file(ctx, this->certificateChainFile.c_str()) <= 0) {
 				throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 			}
-		}
-
-		if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
-			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+			SSL_CTX_build_cert_chain(ctx, SSL_BUILD_CHAIN_FLAG_CHECK);
+		} else {
+			if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
+				throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+			}
 		}
 
 		if (::SSL_CTX_use_PrivateKey_file(ctx, this->privateKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0 ) {
@@ -155,9 +156,11 @@ public:
 				
 				
 				std::string const *chainfile = nullptr;
+				std::string const *certfile = nullptr;
 				std::string const *proto = nullptr;
 				try {
 					chainfile = &sslc["certificate-chain"].value<zany::String>();
+					certfile = &sslc["certificate"].value<zany::String>();
 					proto = &sslc["protocol"].value<zany::String>();
 				} catch (...) {
 				}
@@ -169,7 +172,7 @@ public:
 							vhost["host"].value<zany::String>(),
 							targetPort,
 							(chainfile) ? *chainfile : "",
-							sslc["certificate"].value<zany::String>(),
+							(certfile) ? *certfile : "",
 							sslc["private-key"].value<zany::String>(),
 							(proto) ? *proto : constant::defSslProtocol
 						}
