@@ -16,6 +16,7 @@ std::string	const& HttpHeader::getData() {
 bool HttpHeader::isNumber() {
 	char	*err;
 
+	if (data.empty()) return false;
 	std::strtod(data.c_str(), &err);
 
 	return *err == '\0';

@@ -1,5 +1,6 @@
 /build*
 /.cache
+/.vscode/ipch
 
 .idea
 cmake-build-debug

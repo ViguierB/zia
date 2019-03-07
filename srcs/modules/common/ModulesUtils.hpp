@@ -7,12 +7,13 @@
 
 #pragma once
 
+#include <ctime>
 #include "Zany/HttpBase.hpp"
 
 namespace zia {
 
 struct ModuleUtils {
-	static auto getMethodFromString(std::string &method) {
+	static inline auto getMethodFromString(std::string &method) {
 		if (method == "GET") {
 			return zany::HttpRequest::RequestMethods::GET;
 		} else if (method == "POST") {
@@ -33,6 +34,67 @@ struct ModuleUtils {
 			return zany::HttpRequest::RequestMethods::DELETE;
 		}
 		return zany::HttpRequest::RequestMethods::ERROR;
+	}
+
+	static inline auto getTimeout(int seconds) {
+#		if defined(ZANY_ISWINDOWS)
+			return (DWORD) seconds * 1000;
+#		else
+			struct timeval tv { seconds, 0 };
+			return tv;
+#		endif
+	}
+
+	template<typename SourceT, typename TargetT>
+	static inline void	copyByChunck(SourceT &&source, TargetT &&target) {
+		std::size_t	contentlen;
+		std::string line;
+		try {
+			char		*end;
+			getline(source, line);
+			
+			contentlen = std::strtol(line.c_str(), &end, 16);
+		} catch (...) { contentlen = 0; }
+
+		std::cout << contentlen << std::endl;
+
+		target << line << "\n";
+
+		if (contentlen == 0)
+			return;
+		
+		contentlen += 2;
+		thread_local char	buffer[1024];
+		std::streamsize		sread;
+
+		while (contentlen > 0) {
+			sread = source.rdbuf()->sgetn(
+				buffer,
+				sizeof(buffer) <= contentlen
+					? sizeof(buffer)
+					: contentlen
+			);
+			target.write(buffer, sread);
+			contentlen -= sread;
+		}
+		copyByChunck(source, target);
+	}
+
+	template<typename SourceT, typename TargetT>
+	static inline void	copyByLength(SourceT &&source, TargetT &&target, std::size_t contentlen) {
+		thread_local char	buffer[1024];
+		std::streamsize		sread;
+
+		while (contentlen > 0) {
+			sread = source.rdbuf()->sgetn(
+				buffer,
+				sizeof(buffer) <= contentlen
+					? sizeof(buffer)
+					: contentlen
+			);
+			target.write(buffer, sread);
+			contentlen -= sread;
+		}
 	}
 };
 

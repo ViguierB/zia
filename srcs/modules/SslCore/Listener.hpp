@@ -7,39 +7,44 @@
 
 #pragma once
 
-#include <iostream>
-#include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp> 
-#include <boost/iostreams/stream.hpp>
-#include <boost/bind.hpp>
+
 #include "Zany/Connection.hpp"
 #include "Zany/Pipeline.hpp"
 #include "Zany/Event.hpp"
 #include "Zany/Entity.hpp"
-
-#define SSL_IDENTIFIER (22)
+#include "Constants.hpp"
+#include "../common/ModulesUtils.hpp"
+#include "../common/NetStream.hpp"
 
 namespace zia {
 
 struct	VirtualServersConfig {
+	~VirtualServersConfig() {
+		::SSL_CTX_free(ctx);
+	}
+
 	std::string		hostname;
 	std::uint16_t	port;
+	std::string		certificateChainFile;
 	std::string		certificateFile;
 	std::string		privateKeyFile;
-	SSL_CTX 		*sslContext;
+	std::string		protocol;
+	SSL_CTX			*ctx;
 
 	void init() {
-		const SSL_METHOD *method;
-		SSL_CTX *ctx;
-
-		method = ::SSLv23_server_method();
-
-		ctx = ::SSL_CTX_new(method);
-		if (!ctx) {
-			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
-		}
+		// cctx = ::SSL_CONF_CTX_new();
+		ctx = ::SSL_CTX_new(::SSLv23_server_method());
+		// if (!ctx || !method || !cctx) {
+		// 	throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+		// }
 
 		SSL_CTX_set_ecdh_auto(ctx, 1);
+
+		if (!this->certificateChainFile.empty()) {
+			if (::SSL_CTX_use_certificate_chain_file(ctx, this->certificateChainFile.c_str()) <= 0) {
+				throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+			}
+		}
 
 		if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
@@ -48,50 +53,15 @@ struct	VirtualServersConfig {
 		if (::SSL_CTX_use_PrivateKey_file(ctx, this->privateKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0 ) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
-		
-		sslContext = ctx;
+	}
+
+	void link(SSL *ssl) {
+		::SSL_set_SSL_CTX(ssl, ctx);
 	}
 };
 
 class Listener {
 public:
-	class SslTcpIoStreamBidirectional: public boost::iostreams::device<boost::iostreams::bidirectional> {
-
-	public:
-		SslTcpIoStreamBidirectional(boost::asio::ip::tcp::socket *ssls)
-		: stream(*ssls), disableSsl(false) {}
-
-		std::streamsize write(const char* s, std::streamsize n) {
-			if (disableSsl) {
-				return boost::asio::write(stream, boost::asio::buffer(s, n));
-			} else {
-				return ::SSL_write(ssl->ssl, s, n);
-			}
-		}
-
-		std::streamsize read(char* s, std::streamsize n)  {
-			if (disableSsl) {
-				return stream.read_some(boost::asio::buffer(s, n));
-			} else {
-				return ::SSL_read(ssl->ssl, s, n);
-			}
-		}
-
-		auto	&getSocket() { return stream; }
-		void	setSslDisabled(bool status) { disableSsl = status; }
-		auto	isSslDisabled() { return disableSsl; }
-
-		struct SslUtils {
-			SSL		*ssl;
-			SSL_CTX	*ref_ctx;
-		};
-
-		std::shared_ptr<SslUtils>	ssl;
-	private:
-		boost::asio::ip::tcp::socket	&stream;
-		bool							disableSsl;
-	};
-
 	class Connection: zany::Connection {
 	public:
 		template<typename ...Args>
@@ -101,42 +71,30 @@ public:
 			));
 		}
 
-		virtual std::iostream	&stream() final { return _sslstream; }
+		virtual std::iostream	&stream() final { return *_stream; }
 
 		auto		*parent() { return _parent; }
-		auto		&socket() { return _sock; }
-		auto		&sslStream() { return _sslstream; }
+		auto		&socket() { return _socket; }
+		auto		nativeSocket() { return (*_sslstream)->nativeSocket(); }
 		static auto	&fromZany(zany::Connection &self) { return reinterpret_cast<Connection&>(self); }
-		auto	peek() {
-			char buffer = 0;
-			::recv(socket().native_handle(), &buffer, 1, MSG_PEEK);
-			return buffer;
-		}
 
 		void	doHandshake(zany::Pipeline::Instance &instance);
 
 		auto		onAccept() {
-			auto first = peek();
-
-			if (first != SSL_IDENTIFIER) {
-				_sslstream->setSslDisabled(true);
-			} else {
-				_sslstream->ssl = std::make_shared<SslTcpIoStreamBidirectional::SslUtils>();
-				_sslstream->ssl->ref_ctx = _parent->_baseCtx;
-				_sslstream->ssl->ssl = ::SSL_new(_parent->_baseCtx);
-			}
+			_sslstream = std::make_unique<decltype(_sslstream)::element_type>(_socket.native_handle(), _parent->_baseCtx);
+			_stream = std::make_unique<decltype(_stream)::element_type>(static_cast<std::streambuf*>(&*_sslstream));
 		}
 	private:
+		~Connection() {}
 		Connection(boost::asio::io_service& ios, Listener *parent):
 				zany::Connection(),
-				_sock{ios},
-				_sslstream(&_sock),
+				_socket(ios),
 				_parent(parent) {}
 
-    	boost::asio::ip::tcp::socket	_sock;
-		boost::iostreams::stream<SslTcpIoStreamBidirectional>
+		boost::asio::ip::tcp::socket	_socket;
+		std::unique_ptr<boost::iostreams::stream_buffer<SslTcpBidirectionalIoStream<boost::asio::detail::socket_type>>>
 										_sslstream;
-		std::iostream					*_stream;
+		std::unique_ptr<std::iostream>	_stream;
 		zany::evt::HdlCollector			_collector;
 		Listener						*_parent;
 	};
@@ -145,14 +103,17 @@ public:
 	template<typename PVERSION>
 	Listener(PVERSION pv, boost::asio::io_service& ios, std::uint16_t port)
 	: _acceptor(ios, boost::asio::ip::tcp::endpoint(std::forward<PVERSION>(pv), port)) {
-		const SSL_METHOD *method;
+		_baseCtx = ::SSL_CTX_new(::SSLv23_server_method());
 
-		method = ::SSLv23_server_method();
-
-		_baseCtx = ::SSL_CTX_new(method);
 		if (!_baseCtx) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
+		SSL_CTX_set_ecdh_auto(_baseCtx, 1);
+	}
+
+	~Listener() {
+		if (_baseCtx) SSL_CTX_free(_baseCtx);
+		if (_baseCtxConf) SSL_CONF_CTX_free(_baseCtxConf);
 	}
 
 	void startAccept() {
@@ -191,15 +152,26 @@ public:
 				auto targetPort = (std::uint16_t)vhost["port"].to<int>();
 				if (targetPort != _acceptor.local_endpoint().port())
 					continue;
+				
+				
+				std::string const *chainfile = nullptr;
+				std::string const *proto = nullptr;
+				try {
+					chainfile = &sslc["certificate-chain"].value<zany::String>();
+					proto = &sslc["protocol"].value<zany::String>();
+				} catch (...) {
+				}
+				
 				auto vhit = vhostsConfigs.emplace(
 					std::pair<std::string, VirtualServersConfig>(
 						vhost["host"].value<zany::String>(),
 						VirtualServersConfig {
 							vhost["host"].value<zany::String>(),
 							targetPort,
+							(chainfile) ? *chainfile : "",
 							sslc["certificate"].value<zany::String>(),
 							sslc["private-key"].value<zany::String>(),
-							nullptr
+							(proto) ? *proto : constant::defSslProtocol
 						}
 					)
 				);
@@ -217,17 +189,18 @@ public:
 	boost::asio::ip::tcp::acceptor	_acceptor;
 	std::unordered_multimap<std::string, VirtualServersConfig>
 									vhostsConfigs;
-	SSL_CTX							*_baseCtx;
+	SSL_CTX							*_baseCtx = nullptr;
+	SSL_CONF_CTX					*_baseCtxConf = nullptr;
 };
 
 void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
-	if (!_sslstream->isSslDisabled()) {
+	if (!(*_sslstream)->isSslDisabled()) {
 		pipeline.request.port = _parent->_acceptor.local_endpoint().port();
 
 		struct {
 			Connection					*co;
 			zany::Pipeline::Instance	*pipeline;
-		} data = {
+		} data {
 			this,
 			&pipeline
 		};
@@ -238,14 +211,16 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 			
 			auto vhit = cap->co->parent()->vhostsConfigs.find(hostname);
 			if (vhit == cap->co->parent()->vhostsConfigs.end()) return 1;
-			::SSL_set_SSL_CTX(ssl, vhit->second.sslContext);
+
+			
+			vhit->second.link(ssl);
+
 			return 0;
 		};
 
-		auto &sslData = *_sslstream->ssl;
+		auto &sslData = *(*_sslstream)->ssl;
 
-		sslData.ssl = SSL_new(sslData.ref_ctx);
-		::SSL_set_fd(sslData.ssl, _sock.native_handle());
+		::SSL_set_fd(sslData.ssl, nativeSocket());
 
 		::SSL_CTX_set_tlsext_servername_arg(sslData.ref_ctx, &data);
 		::SSL_CTX_set_tlsext_servername_callback(sslData.ref_ctx, callback);
