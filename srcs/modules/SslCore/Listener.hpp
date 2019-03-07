@@ -7,27 +7,14 @@
 
 #pragma once
 
-#include <iostream>
-#include <boost/asio.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <boost/bind.hpp>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/pem.h>
-#include <openssl/engine.h>
-#include <openssl/conf.h>
-#include <openssl/ssl.h>
+
 #include "Zany/Connection.hpp"
 #include "Zany/Pipeline.hpp"
 #include "Zany/Event.hpp"
 #include "Zany/Entity.hpp"
 #include "Constants.hpp"
-
-#include <cxxabi.h>
-#include <execinfo.h>
-
-
-#define SSL_IDENTIFIER (22)
+#include "../common/ModulesUtils.hpp"
+#include "../common/NetStream.hpp"
 
 namespace zia {
 
@@ -75,71 +62,6 @@ struct	VirtualServersConfig {
 
 class Listener {
 public:
-
-	struct SslUtils {
-		~SslUtils() {
-			if (ssl) {
-				::SSL_shutdown(ssl);
-				::SSL_free(ssl);
-			}
-			if (free_ctx) {
-				//::SSL_CTX_free(ref_ctx);
-			}
-		}
-
-		SSL_CTX	*ref_ctx;
-		SSL		*ssl;
-		bool	free_ctx = false;
-	};
-	
-	template<typename NativeSocket>
-	class SslTcpBidirectionalIoStream {
-	private:
-		static inline auto getTimeout(int seconds) {
-#			if defined(ZANY_ISWINDOWS)
-				return (DWORD) seconds * 1000;
-#			else
-				struct timeval tv { seconds, 0 };
-				return tv;
-#			endif
-		}
-	public:
-		typedef char										char_type;
-    	typedef boost::iostreams::bidirectional_device_tag	category;
-
-		SslTcpBidirectionalIoStream(NativeSocket ssls)
-		: nsocket(ssls), disableSsl(false), _pos(0) {
-			auto tv = getTimeout(15);
-			setsockopt(nsocket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-		}
-
-		std::streamsize write(const char* s, std::streamsize n) {
-			if (disableSsl) {
-				return ::send(nsocket, s, n, 0);
-			} else {
-				return ::SSL_write(ssl->ssl, s, n);
-			}
-		}
-
-		std::streamsize read(char* s, std::streamsize n) {
-			if (disableSsl) {
-				return ::recv(nsocket, s, n, 0);
-			} else {
-				return ::SSL_read(ssl->ssl, s, n);
-			}
-		}
-
-		void	setSslDisabled(bool status) { disableSsl = status; }
-		auto	isSslDisabled() { return disableSsl; }
-		auto	nativeSocket() { return nsocket; }
-
-		std::shared_ptr<SslUtils>	ssl;
-	private:
-		NativeSocket	nsocket;
-		bool			disableSsl;
-		std::streamsize	_pos;
-	};
-
 	class Connection: zany::Connection {
 	public:
 		template<typename ...Args>
@@ -155,26 +77,12 @@ public:
 		auto		&socket() { return _socket; }
 		auto		nativeSocket() { return (*_sslstream)->nativeSocket(); }
 		static auto	&fromZany(zany::Connection &self) { return reinterpret_cast<Connection&>(self); }
-		auto	peek() {
-			char buffer = 0;
-			::recv(_socket.native_handle(), &buffer, 1, MSG_PEEK);
-			return buffer;
-		}
 
 		void	doHandshake(zany::Pipeline::Instance &instance);
 
 		auto		onAccept() {
-			auto	first = peek();
-
-			_sslstream = std::make_unique<decltype(_sslstream)::element_type>(_socket.native_handle());
+			_sslstream = std::make_unique<decltype(_sslstream)::element_type>(_socket.native_handle(), _parent->_baseCtx);
 			_stream = std::make_unique<decltype(_stream)::element_type>(static_cast<std::streambuf*>(&*_sslstream));
-			if (first != SSL_IDENTIFIER) {
-				(*_sslstream)->setSslDisabled(true);
-			} else {
-				(*_sslstream)->ssl = std::make_shared<SslUtils>();
-				(*_sslstream)->ssl->ref_ctx = _parent->_baseCtx;
-				(*_sslstream)->ssl->ssl = ::SSL_new(_parent->_baseCtx);
-			}
 		}
 	private:
 		~Connection() {}

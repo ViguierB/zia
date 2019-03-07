@@ -132,6 +132,7 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 		i.request.methodString = str;
 		
 		stm >> str;
+		i.properties["basepath"] = zany::Property::make<std::string>(str);
 		HttpModule::_parsePath(i, str);
 
 		stm >> str;

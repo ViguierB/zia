@@ -9,10 +9,12 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include <iostream>
+#include <stdlib.h>
 #include "Zany/Loader.hpp"
 #include "Zany/Pipeline.hpp"
 #include "Zany/Orchestrator.hpp"
 #include "../common/ModulesUtils.hpp"
+#include "../common/NetStream.hpp"
 
 namespace zia {
 
@@ -30,6 +32,9 @@ struct VHostConfig {
 
 class ReverseProxyModule : public zany::Loader::AbstractModule {
 public:
+	ReverseProxyModule();
+	~ReverseProxyModule();
+
 	virtual auto	name() const -> const std::string&
 		{ static const std::string name("ReverseProxy"); return name; }
 	virtual void	init() final;
@@ -40,6 +45,7 @@ private:
 	inline void		_onHandleResponse(zany::Pipeline::Instance &i);
 
 	std::unordered_map<std::string, VHostConfig>	_vhosts;
+	using SslStreamBuf = boost::iostreams::stream_buffer<SslTcpBidirectionalIoStream<boost::asio::detail::socket_type>>;
 };
 
 void	ReverseProxyModule::init() {
@@ -53,6 +59,22 @@ void	ReverseProxyModule::init() {
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_RESPONSE>()
 		.addTask<zany::Pipeline::Priority::LOW>(std::bind(&ReverseProxyModule::_onHandleResponse, this, std::placeholders::_1));
+}
+
+ReverseProxyModule::ReverseProxyModule() { 
+	SSL_library_init();
+	OpenSSL_add_ssl_algorithms();
+	SSL_load_error_strings();
+	ERR_load_crypto_strings();
+}
+
+ReverseProxyModule::~ReverseProxyModule() {
+	FIPS_mode_set(0);
+	ENGINE_cleanup();
+	CONF_modules_unload(1);
+	EVP_cleanup();
+	CRYPTO_cleanup_all_ex_data();
+	ERR_free_strings();
 }
 
 void	ReverseProxyModule::_ready() {
@@ -100,20 +122,40 @@ void	ReverseProxyModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	i.writerID = getUniqueId();
 	i.response.status = 200;
 	
-	auto &stream = (i.properties["reverse-proxy_socket"] = zany::Property::make<boost::asio::ip::tcp::iostream>()).get<boost::asio::ip::tcp::iostream>();
-	stream.connect(vh.target.host, std::to_string(vh.target.port));
-	if (!stream) {
+	auto &ios = (i.properties["reverse-proxy_ioservice"] = zany::Property::make<boost::asio::io_service>()).get<boost::asio::io_service>();
+	auto &socket = (i.properties["reverse-proxy_socket"] = zany::Property::make<boost::asio::ip::tcp::socket>(ios)).get<boost::asio::ip::tcp::socket>();
+	
+	boost::asio::ip::tcp::resolver 			resolver(ios);
+	boost::asio::ip::tcp::resolver::query	query(vh.target.host, std::to_string(vh.target.port));
+	auto 									endpoint_iterator = resolver.resolve(query);
+	decltype(endpoint_iterator)				end;
+
+	boost::system::error_code error = boost::asio::error::host_not_found;
+	while (error && endpoint_iterator != end)
+    {
+      socket.close();
+      socket.connect(*endpoint_iterator++, error);
+    }
+	if (error) {
 		i.writerID = 0;
 		i.response.status = 500;
+		return;
 	} 
 
-	stream << i.request.methodString << " " << boost::filesystem::path(i.request.path).lexically_normal().string() << " " << i.request.protocol << "/" << i.request.protocolVersion << "\r\n";
-	for (auto it = i.request.headers.begin(); it != i.request.headers.end(); ++it) {
+	auto &streambuf = (i.properties["reverse-proxy_socket_stream_buf"] = zany::Property::make<SslStreamBuf>(
+		socket.native_handle(),
+		((vh.target.scheme == "https") ? true : false)
+	)).get<SslStreamBuf>();
+	auto &stream = (i.properties["reverse-proxy_stream"] = zany::Property::make<std::iostream>(&streambuf)).get<std::iostream>();
+
+	stream << i.request.methodString << " " << i.properties["basepath"].get<std::string>()  << " " << i.request.protocol << "/" << i.request.protocolVersion << "\r\n";
+	for (auto it = i.request.headers.begin(); it != i.request.headers.end();) {
 		if (it->first == "host") {
-			stream << "host=" << vh.target.host << ":" << vh.target.port << "\r\n";
+			stream << "host: " << vh.target.host << ":" << vh.target.port << "\r\n";
 		} else {
-			stream << it->first << "=" << *it->second << "\r\n";
+			stream << it->first << ": " << *it->second << "\r\n";
 		}
+		++it;
 	}
 	stream << "\r\n";
 	stream.flush();
@@ -122,7 +164,14 @@ void	ReverseProxyModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 void	ReverseProxyModule::_onDataReady(zany::Pipeline::Instance &i) {
 	if (i.writerID != getUniqueId()) return;
 	std::string	line;
-	auto 		&stream = i.properties["reverse-proxy_socket"].get<boost::asio::ip::tcp::iostream>();
+	auto 		&stream = i.properties["reverse-proxy_stream"].get<std::iostream>();
+
+	if (i.request.headers["content-length"].isNumber()) {
+		ModuleUtils::copyByLength(i.connection->stream(), stream, i.request.headers["content-length"].getNumber());
+	} else if (*i.request.headers["transfer-encoding"] == "chunked") {
+		ModuleUtils::copyByChunck(i.connection->stream(), stream);
+		stream << "\r\n";
+	}
 
 	stream >> line >> i.response.status;
 	std::getline(stream, line);
@@ -141,47 +190,19 @@ void	ReverseProxyModule::_onDataReady(zany::Pipeline::Instance &i) {
 	}
 }
 
-template<typename SourceT, typename TargetT>
-inline void	passChunck(SourceT &&source, TargetT &&target) {
-	std::size_t	contentlen;
-	try {
-		source >> std::hex >> contentlen >> std::dec;
-	} catch (...) { contentlen = 0; }
-
-	std::cout << contentlen << std::endl;
-
-	target << std::hex << contentlen << std::dec << "\r\n";
-
-	if (contentlen == 0)
-		return;
-
-	source >> std::ws;
-	
-	thread_local char	buffer[1024];
-	std::streamsize		sread;
-
-	while (contentlen > 0) {
-		sread = source.rdbuf()->sgetn(
-			buffer,
-			sizeof(buffer) <= contentlen
-				? sizeof(buffer)
-				: contentlen
-		);
-		target.write(buffer, sread);
-		contentlen -= sread;
-		std::cout << contentlen << std::endl;
-	}
-	passChunck(source, target);
-}
-
 void	ReverseProxyModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	if (i.writerID != getUniqueId()) return;
-	auto 		&stream = i.properties["reverse-proxy_socket"].get<boost::asio::ip::tcp::iostream>();
+	auto 		&stream = i.properties["reverse-proxy_stream"].get<std::iostream>();
 	
-	if (*i.response.headers["transfer-encoding"] == "chunked") {
+	if (i.response.headers["content-length"].isNumber()) {
 		i.connection->stream() << "\r\n";
-		passChunck(stream, i.connection->stream());
+		ModuleUtils::copyByLength(stream, i.connection->stream(), i.response.headers["content-length"].getNumber());
+	} else if (*i.response.headers["transfer-encoding"] == "chunked") {
+		i.connection->stream() << "\r\n";
+		ModuleUtils::copyByChunck(stream, i.connection->stream());
+		i.connection->stream() << "\r\n";
 	} else {
+		i.connection->stream() << "\r\n";
 		i.connection->stream() << stream.rdbuf();
 	}
 	i.connection->stream().flush();
