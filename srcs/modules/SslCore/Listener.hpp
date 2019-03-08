@@ -48,13 +48,13 @@ struct	VirtualServersConfig {
 					ERR_error_string(ERR_get_error(), nullptr)
 				);
 			}
-			if (::SSL_CTX_build_cert_chain(ctx, SSL_BUILD_CHAIN_FLAG_CHECK) <= 0) {
-				throw std::runtime_error(
-					std::string("OpenSSL: SSL_CTX_build_cert_chain: \n\t") +
-					this->certificateFile + ": " +
-					ERR_error_string(ERR_get_error(), nullptr)
-				);
-			}
+			// if (::SSL_CTX_build_cert_chain(ctx, SSL_BUILD_CHAIN_FLAG_CHECK) <= 0) {
+			// 	throw std::runtime_error(
+			// 		std::string("OpenSSL: SSL_CTX_build_cert_chain: \n\t") +
+			// 		this->certificateFile + ": " +
+			// 		ERR_error_string(ERR_get_error(), nullptr)
+			// 	);
+			// }
 		} else {
 			if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
 				throw std::runtime_error(
