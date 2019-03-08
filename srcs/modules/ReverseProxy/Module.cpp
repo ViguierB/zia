@@ -50,9 +50,8 @@ private:
 
 void	ReverseProxyModule::init() {
 	master->getContext().addTask(std::bind(&ReverseProxyModule::_ready, this));
-
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_REQUEST>()
-		.addTask<zany::Pipeline::Priority::LOW>(std::bind(&ReverseProxyModule::_onHandleRequest, this, std::placeholders::_1));
+		.addTask<zany::Pipeline::Priority::HIGH>(std::bind(&ReverseProxyModule::_onHandleRequest, this, std::placeholders::_1));
 
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_DATA_READY>()
 		.addTask<zany::Pipeline::Priority::LOW>(std::bind(&ReverseProxyModule::_onDataReady, this, std::placeholders::_1));
@@ -149,9 +148,11 @@ void	ReverseProxyModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	auto &stream = (i.properties["reverse-proxy_stream"] = zany::Property::make<std::iostream>(&streambuf)).get<std::iostream>();
 
 	stream << i.request.methodString << " " << i.properties["basepath"].get<std::string>()  << " " << i.request.protocol << "/" << i.request.protocolVersion << "\r\n";
+	
 	for (auto it = i.request.headers.begin(); it != i.request.headers.end();) {
 		if (it->first == "host") {
 			stream << "host: " << vh.target.host << ":" << vh.target.port << "\r\n";
+		} else if (it->first == "connection") {
 		} else {
 			stream << it->first << ": " << *it->second << "\r\n";
 		}
@@ -159,12 +160,15 @@ void	ReverseProxyModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	}
 	stream << "\r\n";
 	stream.flush();
+
+	i.properties["reverse-proxy-enabled"] = zany::Property::make<bool>(true);
 }
 
 void	ReverseProxyModule::_onDataReady(zany::Pipeline::Instance &i) {
 	if (i.writerID != getUniqueId()) return;
-	std::string	line;
+
 	auto 		&stream = i.properties["reverse-proxy_stream"].get<std::iostream>();
+	std::string	line;
 
 	if (i.request.headers["content-length"].isNumber()) {
 		ModuleUtils::copyByLength(i.connection->stream(), stream, i.request.headers["content-length"].getNumber());
@@ -175,7 +179,7 @@ void	ReverseProxyModule::_onDataReady(zany::Pipeline::Instance &i) {
 
 	stream >> line >> i.response.status;
 	std::getline(stream, line);
-	
+
 	while (std::getline(stream, line) 
 	&& line != "" && line != "\r") {
 		line.erase(--line.end());
@@ -184,9 +188,11 @@ void	ReverseProxyModule::_onDataReady(zany::Pipeline::Instance &i) {
 
 		std::getline(splitor, key, ':');
 		boost::to_lower(key);
-		auto &value = *i.response.headers[key];
-		std::getline(splitor, value);
-		boost::trim(value);
+		if (key != "connection") {
+			auto &value = *i.response.headers[key];
+			std::getline(splitor, value);
+			boost::trim(value);
+		}
 	}
 }
 

@@ -71,8 +71,6 @@ public:
 			contentlen = std::strtol(line.c_str(), &end, 16);
 		} catch (...) { contentlen = 0; }
 
-		std::cout << contentlen << std::endl;
-
 		target << line << "\n";
 
 		if (contentlen == 0)
@@ -110,6 +108,7 @@ public:
 			target.write(buffer, sread);
 			contentlen -= sread;
 		}
+		target.flush();
 	}
 
 	template<typename ForwardIt>

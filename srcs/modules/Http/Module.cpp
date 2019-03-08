@@ -117,6 +117,7 @@ void	HttpModule::_parsePath(zany::Pipeline::Instance &i, std::string const &path
 
 void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 	i.writerID = this->getUniqueId();
+	i.response.headers["server"] = "Zia (PCinc)";
 	std::string	line;
 
 	i.connection->stream() >> std::ws;
@@ -201,52 +202,10 @@ void	HttpModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	}
 }
 
-bool	HttpModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i) const {
-	static constexpr std::array<const char*, 6> defexts{
-		".html",
-		".htm",
-		".css",
-		".js",
-		".json",
-		".xml",
-	};
-	auto	mext = boost::filesystem::extension(path);
-
-	for (const char *ext: defexts) {
-		if (mext == ext) {
-			return true;
-		} 
-	}
-
-	try {
-		auto &cexts = i.serverConfig["exts"];
-		if (!cexts.isArray())
-			return false;
-		for (auto const &ext: cexts.value<zany::Array>()) {
-			if (ext.isString() && mext == ext.value<zany::String>()) {
-				return true;
-			}
-		}
-	} catch (...) {}
-	return false;
-}
-
 void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
-	if (boost::filesystem::is_directory(i.request.path)) {
-		for (auto &entry: boost::make_iterator_range(boost::filesystem::directory_iterator(i.request.path))) {
-			boost::filesystem::path	p(entry);
-			if (boost::filesystem::is_regular_file(p)
-			&& boost::to_lower_copy(p.stem().string()) == "index") {
-				i.request.path = p.lexically_normal().string();
-			}
-		}
-	}
-
 	if (i.response.status != 200 || (i.response.status == 200 && i.writerID != this->getUniqueId())) {
 	} else if (!boost::filesystem::is_regular_file(i.request.path)) {
 		i.response.status = 404;
-	} else if (!_isAllowedExt(i.request.path, i)) {
-		i.response.status = 403;
 	} else if (i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto &fs = (i.properties["filestream"] = zany::Property::make<std::ifstream>(i.request.path)).get<std::ifstream>();
 
@@ -273,7 +232,14 @@ void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	&& i.request.method == zany::HttpRequest::RequestMethods::GET) {
 		auto 	&fs = i.properties["filestream"].get<std::ifstream>();
 
-		i.connection->stream() << "\r\n" << fs.rdbuf() << "\r\n";
+		i.connection->stream() << "\r\n";
+		if (*i.response.headers["transfer-encoding"] == "chunked") {
+			ModuleUtils::copyByChunck(fs, i.connection->stream());
+			i.connection->stream() << "\r\n";
+		} else {
+			i.connection->stream() << fs.rdbuf();
+		}
+
 		fs.close();
 	} else if (i.writerID == 0 || i.writerID == this->getUniqueId()) {
 		i.connection->stream()

@@ -8,10 +8,10 @@
 			"host": "localhost",
 			"port": 8080,
 			"path": "def/",
-			"exts": [
-				".test",
-				".txt",
-				".php"
+			"mime": [
+				[ ".test", "text/plain" ],
+				[ ".txt", "text/plain" ],
+				[ ".png", "image/png" ]
 			]
 		},
 		{
@@ -22,10 +22,9 @@
 				"certificate": "cert/server.pem",
 				"private-key": "cert/server.pem"
 			},
-			"exts": [
-				".test",
-				".txt",
-				".php"
+			"mime": [
+				[ ".test", "text/plain" ],
+				[ ".txt", "text/plain" ]
 			]
 		},
 		{

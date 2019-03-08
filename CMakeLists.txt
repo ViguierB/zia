@@ -43,6 +43,7 @@ set(HTTP_NAME HttpModule)
 set(SSLCORE_NAME SslCoreModule)
 set(PHPCGI_NAME PhpCgiModule)
 set(REVERSEPROXY_NAME ReverseProxyModule)
+set(MIME_NAME MimeModule)
 
 set(JSONPARSER_MODULE_SRCS
 	zany/lib/Zany.hpp
@@ -54,6 +55,11 @@ set(JSONPARSER_MODULE_SRCS
 set(HTTP_MODULE_SRCS
 	zany/lib/Zany.hpp
 	srcs/modules/Http/Module.cpp
+)
+
+set(MIME_MODULE_SRCS
+	zany/lib/Zany.hpp
+	srcs/modules/Mime/Module.cpp
 )
 
 set(PHPCGI_MODULE_SRCS
@@ -75,9 +81,11 @@ set(REVERSEPROXY_MODULE_SRCS
 add_library(${REVERSEPROXY_NAME} SHARED ${REVERSEPROXY_MODULE_SRCS})
 add_library(${JSONPARSER_NAME} SHARED ${JSONPARSER_MODULE_SRCS})
 add_library(${HTTP_NAME} SHARED ${HTTP_MODULE_SRCS})
+add_library(${MIME_NAME} SHARED ${MIME_MODULE_SRCS})
 add_library(${SSLCORE_NAME} SHARED ${SSLCORE_MODULE_SRCS})
 add_library(${PHPCGI_NAME} SHARED ${PHPCGI_MODULE_SRCS})
 target_link_libraries(${REVERSEPROXY_NAME} ${CONAN_LIBS})
 target_link_libraries(${SSLCORE_NAME} ${CONAN_LIBS})
 target_link_libraries(${HTTP_NAME} ${CONAN_LIBS})
 target_link_libraries(${PHPCGI_NAME} ${CONAN_LIBS})
+target_link_libraries(${MIME_NAME} ${CONAN_LIBS})
