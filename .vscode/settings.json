@@ -61,6 +61,7 @@
 		"new": "cpp",
 		"algorithm": "cpp",
 		"*.ipp": "cpp",
-		"slist": "cpp"
+		"slist": "cpp",
+		"cinttypes": "cpp"
 	}
 }
