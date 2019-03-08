@@ -9,6 +9,7 @@
 #include <thread>
 #include <memory>
 #include <iostream>
+#include <boost/filesystem/operations.hpp>
 #include "Zany/Orchestrator.hpp"
 #include "Zany/Loader.hpp"
 #include "TcpConnexion.hpp"
@@ -95,15 +96,94 @@ void	ManagerModule::_entrypoint() {
 		ts.emplace_back([this, tcpstream] {
 			std::string line;
 
+			*tcpstream << std::endl << "--> ";
 			while (std::getline(*tcpstream, line)) {
-				if (line.compare("LIST") == 0) {
+
+				if (line == "LIST") {
 					for (auto const &module : const_cast<zany::Loader &>(master->getLoader())) {
 						*tcpstream << module.name() << '\n';
 					}
-				} else if (line.compare("UNLOAD")) {
+				} else if (line.find("UNLOAD") == 0) {
+					std::stringstream comm;
+					comm << line;
+					comm >> line;
+					bool found = false;
 
-				} else if (line.compare("QUIT") == 0)
+					while (comm.rdbuf()->in_avail() != 0) {
+						line.clear();
+						comm >> line;
+						found = false;
+
+						for (auto const &module : const_cast<zany::Loader &>(master->getLoader())) {
+							if (module.name() == line || module.name() == "*" ||
+							    module.name() == "ALL") {
+								this->master->unloadModule(module,
+											   [tcpstream, line] {
+												   *tcpstream
+													   << "Unloading "
+													   << line
+													   << ": Ok"
+													   << std::endl;
+											   },
+											   [tcpstream, line](
+												   zany::Loader::Exception e) {
+												   *tcpstream
+													   << "Unloading "
+													   << line
+													   << ": Ko"
+													   << std::endl
+													   << e.what()
+													   << std::endl;
+											   });
+								found = true;
+							}
+						}
+						if (!found)
+							*tcpstream << "Module " << line << " not found." << std::endl;
+					}
+				} else if (line.find("LOAD") == 0) {
+					std::stringstream comm;
+					boost::filesystem::path path;
+					comm << line;
+					comm >> line;
+					bool found = false;
+
+					while (comm.rdbuf()->in_avail() != 0) {
+						line.clear();
+						comm >> line;
+						found = false;
+						path = line;
+
+						if ((boost::filesystem::is_regular_file(path) || boost::filesystem::is_symlink(path))
+						    && path.extension() ==
+					#if defined(ZANY_ISWINDOWS)
+						       ".dll"
+					#else
+						       ".so"
+					#endif
+							) {
+							auto mp =
+					#if defined(ZANY_ISWINDOWS)
+								it->path().lexically_normal();
+					#else
+								boost::filesystem::path(
+									boost::filesystem::read_symlink(path).string()
+								).lexically_normal()
+					#endif
+							;
+							this->master->loadModule(path.generic_string(), [tcpstream] (auto &module) {
+								*tcpstream << "Module " << module.name() << " loaded." << std::endl;
+							}, [] (auto error) {
+								std::cerr << error.what() << std::endl;
+							});
+							found = true;
+						}
+						if (!found)
+							*tcpstream << "Module " << line << " not found." << std::endl;
+					}
+				}else if (line.compare("QUIT"))
 					return;
+				*tcpstream << std::endl << "--> ";
 			}
 		});
 	}
@@ -113,4 +193,8 @@ void	ManagerModule::_entrypoint() {
 extern "C" ZANY_DLL
 zany::Loader::AbstractModule	*entrypoint() {
 	return new zia::ManagerModule();
+}
+
+void salut() {
+
 }
