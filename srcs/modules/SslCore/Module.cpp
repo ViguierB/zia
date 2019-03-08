@@ -33,6 +33,7 @@ private:
 	std::vector<std::uint16_t>					_ports;
 	std::unique_ptr<boost::asio::io_context>	_ios;
 	std::unique_ptr<std::thread>				_t;
+	bool										_forceClose = false;
 };
 
 void	CoreSslModule::init() { 
@@ -55,10 +56,17 @@ CoreSslModule::~CoreSslModule() {
 }
 
 void	CoreSslModule::_onSignal() {
-	std::cout << "Closing..." << std::endl;
-	
-	zany::evt::Manager::get()["onClose"]->fire();
-	this->master->getContext().stop();
+	if (!_forceClose) {
+		std::cout << "Closing..." << std::endl;
+		
+		zany::evt::Manager::get()["onClose"]->fire();
+		_forceClose = true;
+		this->master->getContext().stop();
+	} else {
+		std::cout << "Closing (force)..." << std::endl;
+		
+		this->master->getThreadPool().abort();
+	}
 }
 
 void	CoreSslModule::_listening(std::condition_variable &cv) {

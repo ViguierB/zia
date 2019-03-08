@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+startAt=$(date "+%d/%m/%Y %H:%M:%S")
+
 RootPath="$(
 	cd "$(dirname "$0")"
 	pwd -P
@@ -32,4 +34,13 @@ fi
 	cmake .. -G "$CMakeType" -DCMAKE_BUILD_TYPE=$1
 
 	cmake --build . --config $@
-) && ( echo "OK"; exit 0 ) || ( echo "KO"; exit 1 );
+) && (
+	echo "OK";
+	doneAt=$(date "+%d/%m/%Y %H:%M:%S")
+	echo "Started at: $startAt"
+	echo "   Done at: $doneAt"
+	exit 0;
+) || (
+	echo "KO";
+	exit 1;
+);

@@ -7,7 +7,7 @@
 
 #pragma once
 
-
+#include "boost/date_time/posix_time/posix_time.hpp"
 #include "Zany/Connection.hpp"
 #include "Zany/Pipeline.hpp"
 #include "Zany/Event.hpp"
@@ -150,7 +150,10 @@ public:
 			nConnection->info.ip = remoteAd.to_string();
 			nConnection->info.port = remoteEp.port();
 
-			std::cout << "New Connection from: " << '[' << nConnection->info.ip << "]:" << nConnection->info.port << std::endl;
+			std::cout
+				<< boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << ": "
+				<< "New Connection from: " << '[' << nConnection->info.ip << "]:" << nConnection->info.port
+					<< std::endl;
 			Connection::fromZany(*nConnection).onAccept();
 			onHandleAccept(nConnection);
 			startAccept();
