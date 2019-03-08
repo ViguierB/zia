@@ -56,6 +56,8 @@ boost::optional<zany::Entity> getBestEntity(ForwardIT beg, ForwardIT end, std::s
 	return mergedEntity;
 }
 
+
+/* ---------------
 int main(int ac, char **av)
 {
 	if (ac != 2)
@@ -77,3 +79,4 @@ int main(int ac, char **av)
 		std::cout << "not found" << std::endl;
 	}
 }
+------------------- */
