@@ -96,7 +96,7 @@ void	ManagerModule::_entrypoint() {
 		ts.emplace_back([this, tcpstream] {
 			std::string line;
 
-			*tcpstream << std::endl << "--> ";
+			*tcpstream << "--> ";
 			while (std::getline(*tcpstream, line)) {
 
 				if (line == "LIST") {
@@ -113,33 +113,43 @@ void	ManagerModule::_entrypoint() {
 						line.clear();
 						comm >> line;
 						found = false;
+						zany::Loader::AbstractModule *toRemove = nullptr;
 
-						for (auto const &module : const_cast<zany::Loader &>(master->getLoader())) {
-							if (module.name() == line || module.name() == "*" ||
-							    module.name() == "ALL") {
-								this->master->unloadModule(module,
-											   [tcpstream, line] {
-												   *tcpstream
-													   << "Unloading "
-													   << line
-													   << ": Ok"
-													   << std::endl;
-											   },
-											   [tcpstream, line](
-												   zany::Loader::Exception e) {
-												   *tcpstream
-													   << "Unloading "
-													   << line
-													   << ": Ko"
-													   << std::endl
-													   << e.what()
-													   << std::endl;
-											   });
-								found = true;
+						for (auto &module : const_cast<zany::Loader &>(master->getLoader())) {
+							if (module.name() == line) {
+								toRemove = &module;
+								break;
 							}
 						}
-						if (!found)
+						if (!toRemove) {
 							*tcpstream << "Module " << line << " not found." << std::endl;
+						} else {
+							std::condition_variable		locker;
+							std::mutex			mtx;
+							std::unique_lock<decltype(mtx)>	ulock(mtx);
+
+							this->master->unloadModule(*toRemove,
+										   [&] {
+											   *tcpstream
+												   << "Unloading "
+												   << line
+												   << ": Ok"
+												   << std::endl;
+											   locker.notify_all();
+										   },
+										   [&] (zany::Loader::Exception e) {
+											   *tcpstream
+												   << "Unloading "
+												   << line
+												   << ": Ko"
+												   << std::endl
+												   << e.what()
+												   << std::endl;
+											   locker.notify_all();
+										   });
+							locker.wait(ulock);
+						}
+
 					}
 				} else if (line.find("LOAD") == 0) {
 					std::stringstream comm;
@@ -162,6 +172,9 @@ void	ManagerModule::_entrypoint() {
 						       ".so"
 					#endif
 							) {
+							std::condition_variable		locker;
+							std::mutex			mtx;
+							std::unique_lock<decltype(mtx)>	ulock(mtx);
 							auto mp =
 					#if defined(ZANY_ISWINDOWS)
 								it->path().lexically_normal();
@@ -171,18 +184,23 @@ void	ManagerModule::_entrypoint() {
 								).lexically_normal()
 					#endif
 							;
-							this->master->loadModule(path.generic_string(), [tcpstream] (auto &module) {
+							this->master->loadModule(path.generic_string(), [&] (auto &module) {
 								*tcpstream << "Module " << module.name() << " loaded." << std::endl;
+								locker.notify_all();
 							}, [] (auto error) {
 								std::cerr << error.what() << std::endl;
 							});
+							locker.wait(ulock);
 							found = true;
 						}
 						if (!found)
 							*tcpstream << "Module " << line << " not found." << std::endl;
 					}
-				}else if (line.compare("QUIT"))
+				}else if (line == "QUIT") {
+					*tcpstream << "FERME TOI." << std::endl;
+					tcpstream->socket().close();
 					return;
+				}
 				*tcpstream << std::endl << "--> ";
 			}
 		});
