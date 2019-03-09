@@ -1,4 +1,0 @@
-catch exec
-break main
-
-set exec-wrapper The wrapper for running programs is \
