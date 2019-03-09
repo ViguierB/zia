@@ -9,17 +9,20 @@
 #include <thread>
 #include <memory>
 #include <iostream>
-#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem.hpp>
 #include "Zany/Orchestrator.hpp"
 #include "Zany/Loader.hpp"
-#include "TcpConnexion.hpp"
+#include "TcpConnection.hpp"
 
 namespace zia {
+namespace manager {
 
 class ManagerModule : public zany::Loader::AbstractModule {
 public:
+	ManagerModule() = default;
 	~ManagerModule() {
 		_continue = false;
+		_ios.stop();
 		if (_worker.get()) {
 			_worker->join();
 		}
@@ -40,22 +43,23 @@ private:
 	}
 
 	void	_entrypoint();
-	void	handle_accept(TcpConnexion::pointer new_connection, const boost::system::error_code& error);
-
-	void	Unload(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream);
-	void	Load(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream);
-
+	void	_startListener();
+	void	_handleReceive(const boost::system::error_code& error, std::size_t);
+	void	_handleSend(boost::shared_ptr<std::string>, const boost::system::error_code&, std::size_t);
 
 	static inline zany::Entity _basicConfig = zany::makeObject {
-	{ "manager", zany::makeObject {
-		{ "listening-port", 5768 }
-	} }
+		{ "manager", zany::makeObject {
+			{ "listening-port", 4222 }
+		} }
 	};
 
 	std::unique_ptr<std::thread>	_worker;
-	std::unique_ptr<boost::asio::ip::tcp::acceptor>
-					_acceptor;
+	std::unique_ptr<boost::asio::ip::udp::socket>
+									_socket;
+  	boost::asio::ip::udp::endpoint	_remoteEndpoint;
+	std::array<char, 4096>			_buffer;
 	bool							_continue = true;
+	boost::asio::io_service 		_ios;
 };
 
 void	ManagerModule::init() {
@@ -67,164 +71,51 @@ void	ManagerModule::init() {
 	});
 }
 
-void	ManagerModule::handle_accept(TcpConnexion::pointer new_connection, const boost::system::error_code& error) {
-	if (!error) {
-		TcpConnexion::pointer new_connection =
-			TcpConnexion::create(_acceptor->get_io_service());
+void	ManagerModule::_handleReceive(const boost::system::error_code& error, std::size_t size) {
+	TcpConnection	connection(*this->master);
 
+	connection.start(std::string(_buffer.data(), size));
 
-		auto tcpstream = std::shared_ptr<boost::asio::ip::tcp::iostream>();
+	boost::shared_ptr<std::string> message(new std::string(connection.getResponse()));
 
-		_acceptor->accept(tcpstream->socket());
+	_socket->async_send_to(boost::asio::buffer(*message), _remoteEndpoint,
+		boost::bind(
+			&ManagerModule::_handleSend,
+		  	this, message,
+			boost::asio::placeholders::error,
+			boost::asio::placeholders::bytes_transferred));
+	connection.getResponse();
 
-		std::thread	thread([tcpstream] {
-			std::cout << tcpstream->rdbuf();
-		});
-	}
+	_startListener();
 }
 
-void	ManagerModule::Unload(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream) {
-	std::stringstream comm;
-	comm << line;
-	comm >> line;
+void	ManagerModule::_handleSend(boost::shared_ptr<std::string>, const boost::system::error_code&, std::size_t) {}
 
-	while (comm.rdbuf()->in_avail() != 0) {
-		line.clear();
-		comm >> line;
-		zany::Loader::AbstractModule *toRemove = nullptr;
-
-		for (auto &module : const_cast<zany::Loader &>(this->master->getLoader())) {
-			if (module.name() == line) {
-				toRemove = &module;
-				break;
-			}
-		}
-		if (!toRemove) {
-			*tcpstream << "Module " << line << " not found." << std::endl;
-		} else {
-			std::condition_variable		locker;
-			std::mutex			mtx;
-			std::unique_lock<decltype(mtx)>	ulock(mtx);
-
-			this->master->unloadModule(*toRemove,
-						   [&] {
-							   *tcpstream
-								   << "Unloading "
-								   << line
-								   << ": Ok"
-								   << std::endl;
-							   locker.notify_all();
-						   },
-						   [&] (zany::Loader::Exception e) {
-							   *tcpstream
-								   << "Unloading "
-								   << line
-								   << ": Ko"
-								   << std::endl
-								   << e.what()
-								   << std::endl;
-							   locker.notify_all();
-						   });
-			locker.wait(ulock);
-		}
-
-	}
-}
-
-void	ManagerModule::Load(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream) {
-	std::stringstream comm;
-	boost::filesystem::path path;
-	comm << line;
-	comm >> line;
-	bool found = false;
-
-	while (comm.rdbuf()->in_avail() != 0) {
-		line.clear();
-		comm >> line;
-		found = false;
-		path = line;
-
-		if ((boost::filesystem::is_regular_file(path) || boost::filesystem::is_symlink(path))
-		    && path.extension() ==
-#if defined(ZANY_ISWINDOWS)
-		       ".dll"
-#else
-		       ".so"
-#endif
-			) {
-			std::condition_variable		locker;
-			std::mutex			mtx;
-			std::unique_lock<decltype(mtx)>	ulock(mtx);
-			auto mp =
-#if defined(ZANY_ISWINDOWS)
-				it->path().lexically_normal();
-#else
-				boost::filesystem::path(
-					(boost::filesystem::is_symlink(path)
-					 ? boost::filesystem::read_symlink(path)
-					 : path
-					).string()
-				).lexically_normal()
-#endif
-			;
-			this->master->loadModule(path.generic_string(), [&] (auto &module) {
-				*tcpstream << "Module " << module.name() << " loaded." << std::endl;
-				locker.notify_all();
-			}, [] (auto error) {
-				std::cerr << error.what() << std::endl;
-			});
-			locker.wait(ulock);
-			found = true;
-		}
-		if (!found)
-			*tcpstream << "Module " << line << " not found." << std::endl;
-	}
+void	ManagerModule::_startListener() {
+	_socket->async_receive_from(
+		boost::asio::buffer(_buffer), _remoteEndpoint,
+		boost::bind(&ManagerModule::_handleReceive, this,
+			boost::asio::placeholders::error,
+			boost::asio::placeholders::bytes_transferred));
 }
 
 void	ManagerModule::_entrypoint() {
-	boost::asio::io_service io_service;
-	_acceptor = std::make_unique<decltype(_acceptor)::element_type>(io_service, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 4222));
-	TcpConnexion::pointer new_connection =
-		TcpConnexion::create(_acceptor->get_io_service());
+	_socket = std::make_unique<decltype(_socket)::element_type>(
+		_ios,
+		boost::asio::ip::udp::endpoint(
+			boost::asio::ip::udp::v4(),
+			ManagerModule::_basicConfig["manager"]["listening-port"].to<int>())
+	);
 
-	std::list<std::thread>	ts;
+	_startListener();
 
-	while (true) {
-		auto tcpstream = std::make_shared<boost::asio::ip::tcp::iostream>();
+	_ios.run();
+}
 
-		_acceptor->accept(tcpstream->socket());
-
-		ts.emplace_back([this, tcpstream] {
-			std::string line;
-
-			*tcpstream << "--> ";
-			while (std::getline(*tcpstream, line)) {
-
-				if (line == "LIST") {
-					for (auto const &module : const_cast<zany::Loader &>(master->getLoader())) {
-						*tcpstream << module.name() << '\n';
-					}
-				} else if (line.find("UNLOAD") == 0) {
-					Unload(line, tcpstream);
-				} else if (line.find("LOAD") == 0) {
-					Load(line, tcpstream);
-				}else if (line == "QUIT") {
-					*tcpstream << "FERME TOI." << std::endl;
-					tcpstream->socket().close();
-					return;
-				}
-				*tcpstream << std::endl << "--> ";
-			}
-		});
-	}
 }
 }
 
 extern "C" ZANY_DLL
 zany::Loader::AbstractModule	*entrypoint() {
-	return new zia::ManagerModule();
-}
-
-void salut() {
-
+	return new zia::manager::ManagerModule();
 }

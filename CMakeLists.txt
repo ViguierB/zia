@@ -63,14 +63,16 @@ set(MIME_MODULE_SRCS
 )
 
 set(PHPCGI_MODULE_SRCS
-		zany/lib/Zany.hpp
-		srcs/modules/PhpCgi/Module.cpp
+	zany/lib/Zany.hpp
+	srcs/modules/PhpCgi/Module.cpp
 )
 
 set(MANAGER_MODULE_SRCS
-		zany/lib/Zany.hpp
-		srcs/modules/Manager/Module.cpp
-		srcs/modules/Manager/TcpConnexion.cpp srcs/modules/Manager/TcpConnexion.hpp)
+	zany/lib/Zany.hpp
+	srcs/modules/Manager/Module.cpp
+	srcs/modules/Manager/TcpConnection.cpp
+	srcs/modules/Manager/TcpConnection.hpp
+)
 
 set(SSLCORE_MODULE_SRCS
 	zany/lib/Zany.hpp
