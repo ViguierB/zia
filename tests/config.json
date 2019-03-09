@@ -51,7 +51,7 @@
 					],
 					"set": [
 						{
-							"host": "$salut"
+							"salut": "host"
 						}
 					],
 					"rule": "/admin.php?param1=$salut"
