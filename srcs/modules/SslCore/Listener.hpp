@@ -7,14 +7,12 @@
 
 #pragma once
 
+#include "../common/NetStream.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include "Zany/Connection.hpp"
 #include "Zany/Pipeline.hpp"
-#include "Zany/Event.hpp"
 #include "Zany/Entity.hpp"
 #include "Constants.hpp"
-#include "../common/ModulesUtils.hpp"
-#include "../common/NetStream.hpp"
 
 namespace zia {
 
@@ -48,13 +46,6 @@ struct	VirtualServersConfig {
 					ERR_error_string(ERR_get_error(), nullptr)
 				);
 			}
-			// if (::SSL_CTX_build_cert_chain(ctx, SSL_BUILD_CHAIN_FLAG_CHECK) <= 0) {
-			// 	throw std::runtime_error(
-			// 		std::string("OpenSSL: SSL_CTX_build_cert_chain: \n\t") +
-			// 		this->certificateFile + ": " +
-			// 		ERR_error_string(ERR_get_error(), nullptr)
-			// 	);
-			// }
 		} else {
 			if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
 				throw std::runtime_error(
@@ -114,7 +105,6 @@ public:
 		std::unique_ptr<boost::iostreams::stream_buffer<SslTcpBidirectionalIoStream<boost::asio::detail::socket_type>>>
 										_sslstream;
 		std::unique_ptr<std::iostream>	_stream;
-		zany::evt::HdlCollector			_collector;
 		Listener						*_parent;
 	};
 

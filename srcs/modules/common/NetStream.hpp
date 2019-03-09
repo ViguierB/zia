@@ -7,19 +7,15 @@
 
 #pragma once
 
-#include <iostream>
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/bind.hpp>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/pem.h>
-#include <openssl/engine.h>
-#include <openssl/conf.h>
-#include <openssl/ssl.h>
+#include <iostream>
 #include <csignal>
 #include <cstring>
 #include "Zany/Platform.hpp"
+#include "ModulesUtils.hpp"
 
 #define SSL_IDENTIFIER (22)
 
@@ -57,29 +53,29 @@ private:
 		return &thisRef;
 	}
 
-#if defined(ZANY_ISUNIX)
-	template<typename Handler>
-	inline std::streamsize	sigWrapper(Handler &&hdl) {
-		if (_error) return 0;
-		auto **__this = getThis();
-		sigset_t origmask;
-		sigset_t sigmask;
+// #if defined(ZANY_ISUNIX)
+// 	template<typename Handler>
+// 	inline std::streamsize	sigWrapper(Handler &&hdl) {
+// 		if (_error) return 0;
+// 		auto **__this = getThis();
+// 		sigset_t origmask;
+// 		sigset_t sigmask;
 
-		*__this = this;
-		sigemptyset(&sigmask);
-		sigaddset(&sigmask, SIGPIPE);
+// 		*__this = this;
+// 		sigemptyset(&sigmask);
+// 		sigaddset(&sigmask, SIGPIPE);
 
-		sigprocmask(SIG_BLOCK, &sigmask, &origmask);
-		auto res = hdl();
-		sigprocmask(SIG_SETMASK, &origmask, NULL);
-		return res;
-	}
-#else
+// 		sigprocmask(SIG_BLOCK, &sigmask, &origmask);
+// 		auto res = hdl();
+// 		sigprocmask(SIG_SETMASK, &origmask, NULL);
+// 		return res;
+// 	}
+// #else
 	template<typename Handler>
 	inline std::streamsize	sigWrapper(Handler &&hdl) {
 		return hdl();
 	}
-#endif
+//#endif
 
 	static void _sigpipeCatchHandler(int) {
 		auto **__this = getThis();

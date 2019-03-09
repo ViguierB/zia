@@ -5,12 +5,13 @@
 ** Module.cpp
 */
 
+#include "./Listener.hpp"
 #include <fstream>
 #include <thread>
 #include <unordered_map>
 #include <boost/filesystem.hpp>
-#include "./Listener.hpp"
-#include "Zany.hpp"
+#include "Zany/Loader.hpp"
+#include "Zany/Orchestrator.hpp"
 
 namespace zia {
 
@@ -59,7 +60,6 @@ void	CoreSslModule::_onSignal() {
 	if (!_forceClose) {
 		std::cout << "Closing..." << std::endl;
 		
-		zany::evt::Manager::get()["onClose"]->fire();
 		_forceClose = true;
 		this->master->getContext().stop();
 	} else {
