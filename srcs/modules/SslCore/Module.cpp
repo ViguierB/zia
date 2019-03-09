@@ -5,12 +5,13 @@
 ** Module.cpp
 */
 
+#include "./Listener.hpp"
 #include <fstream>
 #include <thread>
 #include <unordered_map>
 #include <boost/filesystem.hpp>
-#include "./Listener.hpp"
-#include "Zany.hpp"
+#include "Zany/Loader.hpp"
+#include "Zany/Orchestrator.hpp"
 
 namespace zia {
 
@@ -33,6 +34,7 @@ private:
 	std::vector<std::uint16_t>					_ports;
 	std::unique_ptr<boost::asio::io_context>	_ios;
 	std::unique_ptr<std::thread>				_t;
+	bool										_forceClose = false;
 };
 
 void	CoreSslModule::init() { 
@@ -55,10 +57,16 @@ CoreSslModule::~CoreSslModule() {
 }
 
 void	CoreSslModule::_onSignal() {
-	std::cout << "Closing..." << std::endl;
-	
-	zany::evt::Manager::get()["onClose"]->fire();
-	this->master->getContext().stop();
+	if (!_forceClose) {
+		std::cout << "Closing..." << std::endl;
+		
+		_forceClose = true;
+		this->master->getContext().stop();
+	} else {
+		std::cout << "Closing (force)..." << std::endl;
+		
+		this->master->getThreadPool().abort();
+	}
 }
 
 void	CoreSslModule::_listening(std::condition_variable &cv) {

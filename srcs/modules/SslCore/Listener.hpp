@@ -7,14 +7,12 @@
 
 #pragma once
 
-
+#include "../common/NetStream.hpp"
+#include "boost/date_time/posix_time/posix_time.hpp"
 #include "Zany/Connection.hpp"
 #include "Zany/Pipeline.hpp"
-#include "Zany/Event.hpp"
 #include "Zany/Entity.hpp"
 #include "Constants.hpp"
-#include "../common/ModulesUtils.hpp"
-#include "../common/NetStream.hpp"
 
 namespace zia {
 
@@ -42,17 +40,28 @@ struct	VirtualServersConfig {
 
 		if (!this->certificateChainFile.empty()) {
 			if (::SSL_CTX_use_certificate_chain_file(ctx, this->certificateChainFile.c_str()) <= 0) {
-				throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+				throw std::runtime_error(
+					std::string("OpenSSL: SSL_CTX_use_certificate_chain_file: \n\t") +
+					this->certificateFile + ": " +
+					ERR_error_string(ERR_get_error(), nullptr)
+				);
 			}
-			SSL_CTX_build_cert_chain(ctx, SSL_BUILD_CHAIN_FLAG_CHECK);
 		} else {
 			if (::SSL_CTX_use_certificate_file(ctx, this->certificateFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
-				throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+				throw std::runtime_error(
+					std::string("OpenSSL: SSL_CTX_use_certificate_file: \n\t") +
+					this->certificateFile + ": " +
+					ERR_error_string(ERR_get_error(), nullptr)
+				);
 			}
 		}
 
 		if (::SSL_CTX_use_PrivateKey_file(ctx, this->privateKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0 ) {
-			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
+			throw std::runtime_error(
+				std::string("OpenSSL: SSL_CTX_use_PrivateKey_file: \n\t") +
+				this->certificateFile + ": " +
+				ERR_error_string(ERR_get_error(), nullptr)
+			);
 		}
 	}
 
@@ -96,7 +105,6 @@ public:
 		std::unique_ptr<boost::iostreams::stream_buffer<SslTcpBidirectionalIoStream<boost::asio::detail::socket_type>>>
 										_sslstream;
 		std::unique_ptr<std::iostream>	_stream;
-		zany::evt::HdlCollector			_collector;
 		Listener						*_parent;
 	};
 
@@ -132,7 +140,10 @@ public:
 			nConnection->info.ip = remoteAd.to_string();
 			nConnection->info.port = remoteEp.port();
 
-			std::cout << "New Connection from: " << '[' << nConnection->info.ip << "]:" << nConnection->info.port << std::endl;
+			std::cout
+				<< boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << ": "
+				<< "New Connection from: " << '[' << nConnection->info.ip << "]:" << nConnection->info.port
+					<< std::endl;
 			Connection::fromZany(*nConnection).onAccept();
 			onHandleAccept(nConnection);
 			startAccept();
@@ -158,12 +169,9 @@ public:
 				std::string const *chainfile = nullptr;
 				std::string const *certfile = nullptr;
 				std::string const *proto = nullptr;
-				try {
-					chainfile = &sslc["certificate-chain"].value<zany::String>();
-					certfile = &sslc["certificate"].value<zany::String>();
-					proto = &sslc["protocol"].value<zany::String>();
-				} catch (...) {
-				}
+				try { chainfile = &sslc["certificate-chain"].value<zany::String>(); } catch (...) {} 
+				try { certfile = &sslc["certificate"].value<zany::String>(); } catch (...) {}
+				try { proto = &sslc["protocol"].value<zany::String>(); } catch (...) {}
 				
 				auto vhit = vhostsConfigs.emplace(
 					std::pair<std::string, VirtualServersConfig>(
