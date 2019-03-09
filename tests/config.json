@@ -15,7 +15,7 @@
 			]
 		},
 		{
-			"host": "localhost",
+			"host": "secure.localhost",
 			"port": 4433,
 			"path": "def/",
 			"ssl": {
@@ -27,6 +27,46 @@
 				".txt",
 				".php"
 			]
+		},
+		{
+			"host": "reverse.localhost",
+			"port": 8080,
+			"reverse-proxy": {
+				"host": "localhost",
+				"port": 8090,
+				"scheme": "http"
+			}
+		},
+		{
+			"host": "secure.reverse.localhost",
+			"port": 4433,
+			"ssl": {
+				"certificate": "cert/server.pem",
+				"private-key": "cert/server.pem"
+			},
+			"reverse-proxy": {
+				"host": "localhost",
+				"port": 8090,
+				"scheme": "http"
+			}
+		},
+		{
+			"host": "holidev.localhost",
+			"port": 8080,
+			"reverse-proxy": {
+				"host": "www.holidev.com",
+				"port": 443,
+				"scheme": "https"
+			}
+		},
+		{
+			"host": "test.reverse.localhost",
+			"port": 8080,
+			"reverse-proxy": {
+				"host": "localhost",
+				"port": 8888,
+				"scheme": "http"
+			}
 		}
 	]
 }

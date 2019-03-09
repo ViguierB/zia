@@ -50,7 +50,10 @@ void	Main::_bootstrap() {
 #				else
 					boost::filesystem::path(
 						boost::filesystem::current_path().string() +
-						boost::filesystem::read_symlink(it->path()).string()
+						(boost::filesystem::is_symlink(*it)
+							? boost::filesystem::read_symlink(it->path())
+							: *it
+						).string()
 					).lexically_normal()
 #				endif
 				;
