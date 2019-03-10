@@ -70,8 +70,10 @@ set(PHPCGI_MODULE_SRCS
 set(MANAGER_MODULE_SRCS
 	zany/lib/Zany.hpp
 	srcs/modules/Manager/Module.cpp
-	srcs/modules/Manager/TcpConnection.cpp
-	srcs/modules/Manager/TcpConnection.hpp
+	srcs/modules/common/Json/Parser.hpp
+	srcs/modules/common/Json/Entity.hpp
+	srcs/modules/common/Json/impl/Parser.cpp
+	srcs/modules/common/Json/impl/Entity.cpp
 )
 
 set(SSLCORE_MODULE_SRCS

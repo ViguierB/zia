@@ -7,7 +7,7 @@
 		{
 			"host": "localhost",
 			"port": 8080,
-			"path": "def/",
+			"path": "www/def/",
 			"mime": [
 				[ ".test", "text/plain" ],
 				[ ".txt", "text/plain" ],
@@ -17,7 +17,7 @@
 		{
 			"host": "secure.localhost",
 			"port": 4433,
-			"path": "def/",
+			"path": "www/def/",
 			"ssl": {
 				"certificate": "cert/server.pem",
 				"private-key": "cert/server.pem"
@@ -26,6 +26,18 @@
 				[ ".test", "text/plain" ],
 				[ ".txt", "text/plain" ]
 			]
+		},
+		{
+			"host": "manager.localhost",
+			"port": 4433,
+			"path": "www/manager/",
+			"ssl": {
+				"certificate": "cert/server.pem",
+				"private-key": "cert/server.pem"
+			},
+			"manager": {
+				"password": "75c4ec0328d2ec2e8cc1cfecda70808ab55a68645a100cd7b88b18ed9d44fd5d"
+			}
 		},
 		{
 			"host": "reverse.localhost",

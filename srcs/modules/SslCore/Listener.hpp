@@ -218,15 +218,17 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 		
 		typedef int (*callback_t)(SSL*,int*,decltype(data)*);
 		static callback_t callback = [] (SSL *ssl, int *, decltype(data)*cap) -> int {
-			const char *hostname = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
-			
-			auto vhit = cap->co->parent()->vhostsConfigs.find(hostname);
-			if (vhit == cap->co->parent()->vhostsConfigs.end()) return 1;
+			try {
+				const char *hostname = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+				
+				auto vhit = cap->co->parent()->vhostsConfigs.find(hostname);
+				if (vhit == cap->co->parent()->vhostsConfigs.end()) return 1;
 
-			
-			vhit->second.link(ssl);
+				
+				vhit->second.link(ssl);
 
-			return 0;
+				return 0;
+			} catch (...) { return -1; }
 		};
 
 		auto &sslData = *(*_sslstream)->ssl;
