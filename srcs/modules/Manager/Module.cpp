@@ -33,6 +33,7 @@ private:
 	inline void		_onHandleResponse(zany::Pipeline::Instance &i);
 
 	inline void		_load(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
+	inline void		_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
 	inline void		_unload(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
 	inline void		_list(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
 	inline void		_execute(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
@@ -246,6 +247,31 @@ void	ManagerModule::_list(zany::Pipeline::Instance &i, json::Entity &command, js
 	}
 }
 
+void	ManagerModule::_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	auto connection = i.connection;
+#	if defined(ZANY_ISUNIX)
+		if ((void*)(this->master->*(&zany::Orchestrator::reload)) != (void*)(&zany::Orchestrator::reload)) {
+			this->master->getContext().addTask([connection] {
+				_sendJson(connection->stream(), json::makeObject {
+					{ "status", "fail" },
+					{ "command", "refresh" },
+					{ "message", "Refresh not implemented on this server" }
+				});
+			});
+			return;
+		}
+#	else
+		// disabled feature on windows, because of MSVC...
+#	endif
+	this->master->getContext().addTask([connection] {
+		_sendJson(connection->stream(), json::makeObject {
+			{ "status", "unknow" },
+			{ "command", "refresh" }
+		});
+	});
+	this->master->reload();
+}
+
 void	ManagerModule::_execute(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
 	try {
 		if (command["command"] == "list") {
@@ -254,6 +280,8 @@ void	ManagerModule::_execute(zany::Pipeline::Instance &i, json::Entity &command,
 			_unload(i, command, result);
 		} else if (command["command"] == "load") {
 			_load(i, command, result);
+		} else if (command["command"] == "refresh") {
+			_refresh(i, command, result);
 		}
 	} catch (...) {}
 }

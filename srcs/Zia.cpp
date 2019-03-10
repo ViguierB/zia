@@ -77,6 +77,7 @@ void	Main::_bootstrap() {
 						}
 					}
 					parsed = true;
+					std::cout << _vm["config"].as<std::string>() << " parsed!" << std::endl;
 				}
 			}
 		}, [] (auto error) {
@@ -113,10 +114,21 @@ void	Main::run(int ac, char **av) {
 	
 	this->_pline.linkThreadPool(tp);
 
+	_start();
+
+	_ctx.run();
+}
+
+void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
+	std::cerr << "Error: " << exception.what() << std::endl;
+}
+
+void	Main::_start() {
 	_bootstrap();
 
-	if (getCore()) {
+	auto initCore = [this] {
 		std::vector<std::uint16_t>	ports;
+		std::cout << (void*) &_config << std::endl;
 		auto &cports = _config["listen"].value<zany::Array>();
 
 		ports.reserve(cports.size());
@@ -124,16 +136,29 @@ void	Main::run(int ac, char **av) {
 			ports.push_back(cport.to<int>());
 		}
 		getCore()->startListening(ports);
-	} else {
-		throw std::runtime_error("Critical error: No core module loaded !");
-	}
+		
+		_ctx.addTask([] { std::cout << "Ready" << std::endl; });
+	};
+		
+	// } else {
+	// 	throw std::runtime_error("Critical error: No core module loaded !");
+	// }
 
-	_ctx.addTask([] { std::cout << "Ready" << std::endl; });
-	_ctx.run();
+	_ctx.addTask([this, &initCore] {
+		while (true) {
+			if (getCore()) {
+				initCore();
+				return;
+			} else {
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+		}
+	});
+	
 }
 
-void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
-	std::cerr << "Error: " << exception.what() << std::endl;
+void	Main::reload() {
+
 }
 
 }
