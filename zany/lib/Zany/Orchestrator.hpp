@@ -138,15 +138,15 @@ protected:
 
 	virtual void	onPipelineThrow(PipelineExecutionError const &exception) = 0;
 
-	InterfaceContext	&_ctx;
-	Pipeline			_pline;
-	Loader				_loader;
+	InterfaceContext		&_ctx;
+	Pipeline				_pline;
+	Loader					_loader;
+	Loader::AbstractModule	*_coreModule = nullptr;
 private:
 	inline void	_onPipelineReady(zany::Pipeline::Instance &);
 	inline void	_routine();
 
 	void												*__routine;
-	Loader::AbstractModule								*_coreModule = nullptr;
 	std::deque<std::function<void()>>					_safeHdls;
 	std::mutex											_safeMtx;
 	std::atomic<bool>									_safeIsComputing = false;

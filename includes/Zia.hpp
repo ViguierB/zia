@@ -21,9 +21,11 @@ public:
 	virtual auto	getConfig() const -> const zany::Entity final { return _config; }
 	void			run(int ac, char **av);
 	void			startPipeline(zany::Connection::SharedInstance c);
+	virtual void	reload() final;
 protected:
 	virtual void	onPipelineThrow(PipelineExecutionError const &exception) final;
 private:
+	void			_start();
 	void			_listening();
 	void			_bootstrap();
 	void			_onSignal();
@@ -31,6 +33,8 @@ private:
 	boost::program_options::variables_map	_vm;
 	zany::Entity							_config;
 	boost::asio::io_service 				_ios;
+	std::string								_basePwd;
+	bool									_refreshing;
 };
 
 }
