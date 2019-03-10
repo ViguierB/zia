@@ -5,13 +5,13 @@
 ** Module.cpp
 */
 
+#include "./Listener.hpp"
 #include <fstream>
 #include <thread>
 #include <unordered_map>
 #include <boost/filesystem.hpp>
 #include "Zany/Loader.hpp"
 #include "Zany/Orchestrator.hpp"
-#include "./Listener.hpp"
 
 namespace zia {
 

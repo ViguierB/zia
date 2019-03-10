@@ -30,10 +30,15 @@ $('document').ready(() => {
 					'command': 'list'
 				})
 
-				makeListElem = (name) => {
+				makeListElem = ({ name, badges }) => {
 					let i = moduleList.push({
 						name: name,
-						elem: $(`<li class="list-group-item">${name}</li>`),
+						elem: (() => {
+							let bs = badges || [];
+							let _badges = "";
+							bs.forEach(badge => { _badges += `<span class="badge badge-info m_badge float-right">${badge}</span>` });
+							return $(`<li class="list-group-item">${name}${_badges}</li>`)
+						})(),
 						checked: false
 					}) - 1;
 					let elem = moduleList[i].elem;
@@ -62,16 +67,35 @@ $('document').ready(() => {
 			return null
 		};
 
+		let counterEnabled = false;
 		let update = async () => {
 			try {
 				await updateList();
 				badPasswordContent.css( "display", "none" );
 				content.css( "display", "block" );
+				counterEnabled = true;
+				let getCount = async () => {
+					try {
+						let data = await my_axios.post('/',{
+							'password': hashPassword(password),
+							'command': 'counter',
+						});
+						
+						$('#counter').text("Request count: " + data.data.count);
+
+						if (counterEnabled)
+							setTimeout(() => { getCount() }, 5000);
+						return;
+					} catch (e) {}
+					counterEnabled = false;
+				};
+				getCount()
 				return;
 			} catch (e) {
 				badPasswordContent.css( "display", "block" );
 				content.css( "display", "none" );
-				throw e;
+				counterEnabled = false;
+				alert("You are unauthorized to access this page");
 			}
 		}
 
@@ -135,6 +159,16 @@ $('document').ready(() => {
 		passwordInput.on('input', () => {
 			password = passwordInput.val();
 		});
+
+		passwordInput.on('keyup', (e) => {
+			if (e.keyCode === 13) {
+				event.preventDefault();
+
+    			submitPassword.click();
+			}
+		});
+
+		passwordInput.focus();
 	
 		
 		return {};

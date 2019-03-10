@@ -12,6 +12,7 @@
 #include <type_traits>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/bind.hpp>
 #include "Zia.hpp"
 #include "Zany/Connection.hpp"
@@ -19,6 +20,10 @@
 #include "Zany/Event.hpp"
 
 namespace zia {
+
+Main::~Main() {
+	_moduleLoaderThread.detach();
+}
 
 void	Main::_bootstrap() {
 	auto	pmodules = _vm.count("modules")
@@ -44,7 +49,7 @@ void	Main::_bootstrap() {
 					".so"
 #				endif
 			) {
-				auto mp =
+				auto mp =		
 #				if defined(ZANY_ISWINDOWS)
 					it->path().lexically_normal();
 #				else
@@ -86,6 +91,52 @@ void	Main::_bootstrap() {
 
 	if (parsed == false) {
 		_config = constant::defConfig.clone();
+	}
+}
+
+void	Main::_moduleLoaderEntrypoint() {
+	std::string line;
+	while (std::getline(std::cin, line)) {
+		std::istringstream	sstm(line);
+		std::string command;
+		sstm >> command;
+
+		if (boost::to_lower_copy(command) == "list") {
+			for (auto &m : _loader) {
+				std::cout << m.name() << std::endl;
+			}
+		} else if (boost::to_lower_copy(command) == "load") {
+			std::string path;
+
+			sstm >> path;
+			loadModule(path, [] (auto &module) {
+				std::cout << "Module: " << module.name() << " loaded\n"; 
+			}, [] (auto e) {
+				std::cerr << e.what() << std::endl;
+			});
+		} else if (boost::to_lower_copy(command) == "unload") {
+			std::string name;
+			zany::Loader::AbstractModule *module = nullptr;
+
+			sstm >> name;
+			for (auto &m: _loader) {
+				if (m.name() == name) {
+					module = &m;
+					break;
+				}
+			}
+			if (!module) {
+				std::cerr << "Unkown module" << std::endl;
+				return;
+			}
+			unloadModule(*module, [name] () {
+				std::cout << "Module: " << name << " loaded\n"; 
+			}, [] (auto e) {
+				std::cerr << e.what() << std::endl;
+			});
+		} else if (boost::to_lower_copy(command) == "reload") {
+			reload();
+		}
 	}
 }
 

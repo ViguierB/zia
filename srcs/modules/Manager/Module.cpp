@@ -32,6 +32,7 @@ private:
 	inline void		_onDataReady(zany::Pipeline::Instance &i);
 	inline void		_onHandleResponse(zany::Pipeline::Instance &i);
 
+	inline void		_counter(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
 	inline void		_load(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
 	inline void		_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
 	inline void		_unload(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
@@ -53,6 +54,7 @@ private:
 		return s;
 	}
 
+	std::atomic<std::size_t>	_requestCounter = 0;
 };
 
 std::string ManagerModule::_sha256String(std::string &&in)
@@ -85,6 +87,8 @@ void	ManagerModule::init() {
 
 
 void	ManagerModule::_onHandleRequest(zany::Pipeline::Instance &i) {
+	_requestCounter++;
+
 	i.response.headers["Access-Control-Allow-Origin"] = "*";
 	i.response.headers["Access-Control-Allow-Headers"] = "manager-api, content-type";
 	i.response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTION";
@@ -250,8 +254,28 @@ void	ManagerModule::_load(zany::Pipeline::Instance &i, json::Entity &command, js
 void	ManagerModule::_list(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
 	result = json::Entity::ARR;
 	for (auto &m: const_cast<zany::Loader&>(this->master->getLoader())) {
-		result.push(m.name());
+		json::Entity mdl( json::makeObject {
+			{ "name", m.name() },
+			{ "badges", json::Entity::ARR }
+		} );
+		if (m.isACoreModule()) {
+			mdl["badges"].push("core");
+		}
+		if (m.isAParser()) {
+			mdl["badges"].push("parser");
+		}
+		if (m.getUniqueId() == getUniqueId()) {
+			mdl["badges"].push("me :)");
+		}
+
+		result.push(mdl);
 	}
+}
+
+void	ManagerModule::_counter(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	result = json::makeObject {
+		{ "count", _requestCounter.load() }
+	};
 }
 
 void	ManagerModule::_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
@@ -289,6 +313,8 @@ void	ManagerModule::_execute(zany::Pipeline::Instance &i, json::Entity &command,
 			_load(i, command, result);
 		} else if (command["command"] == "refresh") {
 			_refresh(i, command, result);
+		} else if (command["command"] == "counter") {
+			_counter(i, command, result);
 		}
 	} catch (...) {}
 }

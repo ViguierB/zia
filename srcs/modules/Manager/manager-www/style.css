@@ -27,7 +27,6 @@ body {
 
 #header {
 	background-color: #73b1f1;
-    border-radius: 0 0 5px 5px;
 }
 
 #title {
@@ -44,6 +43,10 @@ body {
 
 #content {
 
+}
+
+.m_badge {
+	margin-left: 10px;
 }
 
 #bad-password {
