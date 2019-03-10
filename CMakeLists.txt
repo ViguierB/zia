@@ -8,7 +8,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
 else ()
 	#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ggdb")
 	set(CMAKE_CXX_FLAGS_DEBUG
-		"${CMAKE_CXX_FLAGS_DEBUG} -ggdb -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter"
+		"${CMAKE_CXX_FLAGS_DEBUG} -ggdb -g -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter"
 	)
 endif ()
 

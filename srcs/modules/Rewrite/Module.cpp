@@ -15,56 +15,78 @@
 
 namespace zia {
 
-class RewriteModule : public zany::Loader::AbstractModule {
-public:
-	virtual auto name() const -> const std::string & {
-		static const std::string name("Rewrite");
-		return name;
+	class RewriteModule : public zany::Loader::AbstractModule {
+	public:
+		virtual auto name() const -> const std::string & {
+			static const std::string name("Rewrite");
+			return name;
+		}
+
+		virtual void init() final;
+
+	private:
+		inline void _onHandleRequest(zany::Pipeline::Instance &i);
+
+	private:
+		zany::Entity	conf;
+	};
+
+
+	void RewriteModule::init() {
+		this->conf = this->master->getConfig().clone();
+		garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_REQUEST>()
+			.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&RewriteModule::_onHandleRequest, this, std::placeholders::_1));
 	}
 
-	virtual void init() final;
+	inline void RewriteModule::_onHandleRequest(zany::Pipeline::Instance &i) {
+		int pos;
+		try {
+			for (pos = 0; conf["server"][pos]["host"] != i.request.host && conf["server"][pos]["port"] != i.request.port; ++pos);
+		} catch (...) {
+			return;
+		}
 
-private:
-	inline void _onHandleRequest(zany::Pipeline::Instance &i);
+		auto &rewrites = conf["server"][pos]["rewrite"].value<zany::Array>();
+		for (auto &rewrite : rewrites) {
+			if (false) {
+				next:
+				continue;
+			}
 
-	inline void _onDataReady(zany::Pipeline::Instance &i);
+			auto &vec = rewrite["if"].value<zany::Array>();
+			for (auto it = vec.begin(); it < vec.end(); ++it) {
+				for( auto &obj : it->value<zany::Object>()) {
+					if (!(obj.first == "path" && obj.second.isString() && obj.second.value<zany::String>() == i.request.path))
+						goto next;
+				}
+			}
 
-	inline void _onHandleResponse(zany::Pipeline::Instance &i);
+			std::unordered_map<std::string, std::string> var;
+			vec = rewrite["var"].value<zany::Array>();
+			for (auto it = vec.begin(); it < vec.end(); ++it) {
+				var[it->to<std::string>()];
+			}
 
-	inline boost::process::environment _fillCgiEnv(zany::Pipeline::Instance &i);
+			vec = rewrite["set"].value<zany::Array>();
+			for (auto it = vec.begin(); it < vec.end(); ++it) {
+				for( auto &obj : it->value<zany::Object>()) {
+					if (var.find(obj.first) != var.end())
+						var[obj.first] = obj.second.value<zany::String>();
+				}
+			}
 
-private:
-	zany::Entity	conf;
-};
+			for (auto &item : var) {
+				item.second.insert(0, 1, '$');
+			}
 
-
-void RewriteModule::init() {
-	this->conf = this->master->getConfig().clone();
-}
-
-inline void RewriteModule::_onHandleRequest(zany::Pipeline::Instance &i) {
-	int pos;
-	try {
-		for (pos = 0; conf["server"][pos]["host"] != i.request.host && conf["server"][pos]["port"] != i.request.port; ++pos);
-	} catch (...) {
-		return;
-	}
-
-	auto &vec = conf["server"][pos]["if"].value<zany::Array>();
-	for (auto it = vec.begin(); it < vec.end(); ++it) {
-		for( auto &obj : it->value<zany::Object>()) {
-			if (!(obj.first == "path" && obj.second.isString() && obj.second.value<zany::String>() == i.request.path))
-				return;
+			i.request.path = rewrite["rule"].value<zany::String>();
+			std::size_t posV;
+			for (auto &item : var) {
+				if ((posV = i.request.path.find(item.first)) != std::string::npos)
+					item.second.replace(posV, item.first.size(), item.second);
+			}
 		}
 	}
-
-	std::unordered_map<std::string, std::string> var;
-	vec = conf["server"][pos]["var"].value<zany::Array>();
-	for (auto it = vec.begin(); it < vec.end(); ++it) {
-		var[it->to<std::string>()];
-	}
-
-}
 
 }
 

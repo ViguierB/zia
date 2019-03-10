@@ -18,6 +18,24 @@
 			"host": "secure.localhost",
 			"port": 4433,
 			"path": "def/",
+			"rewrite": [
+				{
+					"if": [
+						{
+							"path": "/test"
+						}
+					],
+					"var": [
+						"salut"
+					],
+					"set": [
+						{
+							"salut": "test.php"
+						}
+					],
+					"rule": "/$salut"
+				}
+			],
 			"ssl": {
 				"certificate": "cert/server.pem",
 				"private-key": "cert/server.pem"
@@ -39,27 +57,6 @@
 		{
 			"host": "secure.reverse.localhost",
 			"port": 4433,
-			"rewrite": [
-				{
-					"if": [
-						{
-							"path": "/salut.html"
-						}
-					],
-					"var": [
-						"salut"
-					],
-					"set": [
-						{
-							"salut": "host"
-						}
-					],
-					"rule": "/admin.php?param1=$salut"
-				},
-				{
-
-				}
-			],
 			"ssl": {
 				"certificate": "cert/server.pem",
 				"private-key": "cert/server.pem"
