@@ -1,0 +1,53 @@
+
+.btn-light {
+	background-color: transparent;
+	border: none;
+}
+
+#password-input {
+	max-width: 375px;
+	margin-left: auto;
+}
+
+.h-center {
+	margin-top: auto !important;
+    margin-bottom: auto !important;
+}
+
+html {
+	height: 100%;
+}
+
+body {
+	background-color: #f3f3f3;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#header {
+	background-color: #73b1f1;
+    border-radius: 0 0 5px 5px;
+}
+
+#title {
+	margin-top: 10px;
+	margin-bottom: 10px;
+	color: white
+}
+
+#top {
+	width: 100%;
+	height: 25px;
+	background-color: #3c8ace;
+}
+
+#content {
+
+}
+
+#bad-password {
+	width: 100%;
+    height: 100%;
+    display: flex;
+}
