@@ -211,7 +211,7 @@ void	ManagerModule::_load(zany::Pipeline::Instance &i, json::Entity &command, js
 		) {
 		auto mp =
 #if defined(ZANY_ISWINDOWS)
-			it->path().lexically_normal();
+			path.lexically_normal();
 #else
 			boost::filesystem::path(
 				(boost::filesystem::is_symlink(path)
@@ -273,9 +273,9 @@ void	ManagerModule::_list(zany::Pipeline::Instance &i, json::Entity &command, js
 }
 
 void	ManagerModule::_counter(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
-	result = json::makeObject {
-		{ "count", _requestCounter.load() }
-	};
+	result = json::Entity(json::makeObject {
+		{ "count", (long) _requestCounter.load() }
+	});
 }
 
 void	ManagerModule::_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
