@@ -33,6 +33,8 @@ private:
 	boost::program_options::variables_map	_vm;
 	zany::Entity							_config;
 	boost::asio::io_service 				_ios;
+	std::string								_basePwd;
+	bool									_refreshing;
 };
 
 }

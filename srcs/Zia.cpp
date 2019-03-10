@@ -77,7 +77,6 @@ void	Main::_bootstrap() {
 						}
 					}
 					parsed = true;
-					std::cout << _vm["config"].as<std::string>() << " parsed!" << std::endl;
 				}
 			}
 		}, [] (auto error) {
@@ -114,9 +113,26 @@ void	Main::run(int ac, char **av) {
 	
 	this->_pline.linkThreadPool(tp);
 
-	_start();
+	_basePwd = boost::filesystem::current_path().string();
 
-	_ctx.run();
+	_refreshing = true;
+	while (_refreshing) {
+		_refreshing = false;
+		for (auto it = _loader.begin(); it != _loader.end();) {
+			auto name = it->name();
+			auto toDelete = it++;
+
+			unloadModule(*toDelete, [name] {
+				std::cout << "Module: " << name << " unloaded" << std::endl;
+			});
+		}
+		
+		_bootstrap();
+		_start();
+
+		_ctx.run();
+
+	}
 }
 
 void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
@@ -124,41 +140,43 @@ void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
 }
 
 void	Main::_start() {
-	_bootstrap();
 
-	auto initCore = [this] {
+	static constexpr auto __initCore = [] (Main *self) { // capturing this cause sigsegv ??? wtf
 		std::vector<std::uint16_t>	ports;
-		std::cout << (void*) &_config << std::endl;
-		auto &cports = _config["listen"].value<zany::Array>();
+		auto &cports = self->_config["listen"].value<zany::Array>();
 
 		ports.reserve(cports.size());
 		for (auto &cport: cports) {
 			ports.push_back(cport.to<int>());
 		}
-		getCore()->startListening(ports);
+		self->getCore()->startListening(ports);
 		
-		_ctx.addTask([] { std::cout << "Ready" << std::endl; });
+		self->_ctx.addTask([] { std::cout << "Ready" << std::endl; });
 	};
-		
-	// } else {
-	// 	throw std::runtime_error("Critical error: No core module loaded !");
-	// }
 
-	_ctx.addTask([this, &initCore] {
-		while (true) {
-			if (getCore()) {
-				initCore();
-				return;
-			} else {
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			}
-		}
-	});
+	auto initCore = std::make_shared<std::function<void()>>();
 	
+	*initCore = [this, initCore] {
+		if (getCore()) {
+			__initCore(this);
+			return;
+		} else {
+			std::cout << "Waiting for a core module" << std::endl;
+			std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+		}
+		_ctx.addTask([this, initCore] { _ctx.addTask(*initCore); });
+	};
+
+	_ctx.addTask(*initCore);
 }
 
 void	Main::reload() {
-
+	this->_ctx.addTask([this] {
+		_refreshing = true;
+		std::cout << "Refreshing" << std::endl;
+		boost::filesystem::current_path(_basePwd);
+		this->_ctx.stop();
+	});
 }
 
 }

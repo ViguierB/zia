@@ -250,7 +250,7 @@ void	ManagerModule::_list(zany::Pipeline::Instance &i, json::Entity &command, js
 void	ManagerModule::_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
 	auto connection = i.connection;
 #	if defined(ZANY_ISUNIX)
-		if ((void*)(this->master->*(&zany::Orchestrator::reload)) != (void*)(&zany::Orchestrator::reload)) {
+		if ((void*)(this->master->*(&zany::Orchestrator::reload)) == (void*)(&zany::Orchestrator::reload)) {
 			this->master->getContext().addTask([connection] {
 				_sendJson(connection->stream(), json::makeObject {
 					{ "status", "fail" },
@@ -265,7 +265,7 @@ void	ManagerModule::_refresh(zany::Pipeline::Instance &i, json::Entity &command,
 #	endif
 	this->master->getContext().addTask([connection] {
 		_sendJson(connection->stream(), json::makeObject {
-			{ "status", "unknow" },
+			{ "status", "success" },
 			{ "command", "refresh" }
 		});
 	});
