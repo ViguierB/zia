@@ -171,35 +171,41 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 			i.request.port = static_cast<int>(zany::HttpHeader(port).getNumber());
 		}
 	}
-}
 
-void	HttpModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	auto	found = false;
 
-	for (auto &srv: master->getConfig()["server"].value<zany::Array>()) {
-		if (srv["host"] == i.request.host && srv["port"] == i.request.port) {
-			i.serverConfig = srv.clone();
-			found = true;
-			break;
+	if (i.serverConfig.isNull()) {
+		for (auto &srv: master->getConfig()["server"].value<zany::Array>()) {
+			if (srv["host"] == i.request.host && srv["port"] == i.request.port) {
+				i.serverConfig = srv.clone();
+				found = true;
+				break;
+			}
 		}
+	} else {
+		found = true;
 	}
 	if (!found) {
 		i.response.status = 404;
 	} else {
 		i.request.path = boost::filesystem::path(i.request.path).lexically_normal().string();
 		if (i.request.path.substr(0, 3) == "../"
-		|| i.request.path.substr(0, 3) == "/.."
-		|| i.request.path.substr(0, 2) == "..") {
+		    || i.request.path.substr(0, 3) == "/.."
+		    || i.request.path.substr(0, 2) == "..") {
 			i.response.status = 403; /* try to access to sub-directory */
 		} else {
 			i.request.path = boost::filesystem::path(
 				(i.serverConfig["path"].isString()
-					? i.serverConfig["path"].value<zany::String>()
-					: "")
+				 ? i.serverConfig["path"].value<zany::String>()
+				 : "")
 				+ "/" + i.request.path
 			).lexically_normal().string();
 		}
 	}
+}
+
+void	HttpModule::_onHandleRequest(zany::Pipeline::Instance &i) {
+
 }
 
 void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
