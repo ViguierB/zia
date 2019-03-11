@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 17)
 if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
 
 else ()
+	set(CMAKE_CXX_FLAGS
+		"${CMAKE_CXX_FLAGS} -Wno-pmf-conversions"
+	)
 	#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ggdb")
 	set(CMAKE_CXX_FLAGS_DEBUG
 		"${CMAKE_CXX_FLAGS_DEBUG} -ggdb -g -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter"
@@ -71,7 +74,11 @@ set(PHPCGI_MODULE_SRCS
 set(MANAGER_MODULE_SRCS
 	zany/lib/Zany.hpp
 	srcs/modules/Manager/Module.cpp
-	srcs/modules/Manager/TcpConnexion.cpp srcs/modules/Manager/TcpConnexion.hpp)
+	srcs/modules/common/Json/Parser.hpp
+	srcs/modules/common/Json/Entity.hpp
+	srcs/modules/common/Json/impl/Parser.cpp
+	srcs/modules/common/Json/impl/Entity.cpp
+)
 
 set(SSLCORE_MODULE_SRCS
 	zany/lib/Zany.hpp

@@ -12,6 +12,7 @@
 #include <type_traits>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/bind.hpp>
 #include "Zia.hpp"
 #include "Zany/Connection.hpp"
@@ -19,6 +20,10 @@
 #include "Zany/Event.hpp"
 
 namespace zia {
+
+Main::~Main() {
+	_moduleLoaderThread.detach();
+}
 
 void	Main::_bootstrap() {
 	auto	pmodules = _vm.count("modules")
@@ -44,7 +49,7 @@ void	Main::_bootstrap() {
 					".so"
 #				endif
 			) {
-				auto mp =
+				auto mp =		
 #				if defined(ZANY_ISWINDOWS)
 					it->path().lexically_normal();
 #				else
@@ -89,6 +94,52 @@ void	Main::_bootstrap() {
 	}
 }
 
+void	Main::_moduleLoaderEntrypoint() {
+	std::string line;
+	while (std::getline(std::cin, line)) {
+		std::istringstream	sstm(line);
+		std::string command;
+		sstm >> command;
+
+		if (boost::to_lower_copy(command) == "list") {
+			for (auto &m : _loader) {
+				std::cout << m.name() << std::endl;
+			}
+		} else if (boost::to_lower_copy(command) == "load") {
+			std::string path;
+
+			sstm >> path;
+			loadModule(path, [] (auto &module) {
+				std::cout << "Module: " << module.name() << " loaded\n"; 
+			}, [] (auto e) {
+				std::cerr << e.what() << std::endl;
+			});
+		} else if (boost::to_lower_copy(command) == "unload") {
+			std::string name;
+			zany::Loader::AbstractModule *module = nullptr;
+
+			sstm >> name;
+			for (auto &m: _loader) {
+				if (m.name() == name) {
+					module = &m;
+					break;
+				}
+			}
+			if (!module) {
+				std::cerr << "Unkown module" << std::endl;
+				return;
+			}
+			unloadModule(*module, [name] () {
+				std::cout << "Module: " << name << " loaded\n"; 
+			}, [] (auto e) {
+				std::cerr << e.what() << std::endl;
+			});
+		} else if (boost::to_lower_copy(command) == "reload") {
+			reload();
+		}
+	}
+}
+
 void	Main::run(int ac, char **av) {
 	namespace po = boost::program_options;
 
@@ -113,27 +164,70 @@ void	Main::run(int ac, char **av) {
 	
 	this->_pline.linkThreadPool(tp);
 
-	_bootstrap();
+	_basePwd = boost::filesystem::current_path().string();
 
-	if (getCore()) {
+	_refreshing = true;
+	while (_refreshing) {
+		_refreshing = false;
+		for (auto it = _loader.begin(); it != _loader.end();) {
+			auto name = it->name();
+			auto toDelete = it++;
+
+			unloadModule(*toDelete, [name] {
+				std::cout << "Module: " << name << " unloaded" << std::endl;
+			});
+		}
+		
+		_bootstrap();
+		_start();
+
+		_ctx.run();
+
+	}
+}
+
+void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
+	std::cerr << "Error: " << exception.what() << std::endl;
+}
+
+void	Main::_start() {
+
+	static constexpr auto __initCore = [] (Main *self) { // capturing this cause sigsegv ??? wtf
 		std::vector<std::uint16_t>	ports;
-		auto &cports = _config["listen"].value<zany::Array>();
+		auto &cports = self->_config["listen"].value<zany::Array>();
 
 		ports.reserve(cports.size());
 		for (auto &cport: cports) {
 			ports.push_back(cport.to<int>());
 		}
-		getCore()->startListening(ports);
-	} else {
-		throw std::runtime_error("Critical error: No core module loaded !");
-	}
+		self->getCore()->startListening(ports);
+		
+		self->_ctx.addTask([] { std::cout << "Ready" << std::endl; });
+	};
 
-	_ctx.addTask([] { std::cout << "Ready" << std::endl; });
-	_ctx.run();
+	auto initCore = std::make_shared<std::function<void()>>();
+	
+	*initCore = [this, initCore] {
+		if (getCore()) {
+			__initCore(this);
+			return;
+		} else {
+			std::cout << "Waiting for a core module" << std::endl;
+			std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+		}
+		_ctx.addTask([this, initCore] { _ctx.addTask(*initCore); });
+	};
+
+	_ctx.addTask(*initCore);
 }
 
-void	Main::onPipelineThrow(PipelineExecutionError const &exception) {
-	std::cerr << "Error: " << exception.what() << std::endl;
+void	Main::reload() {
+	this->_ctx.addTask([this] {
+		_refreshing = true;
+		std::cout << "Refreshing" << std::endl;
+		boost::filesystem::current_path(_basePwd);
+		this->_ctx.stop();
+	});
 }
 
 }

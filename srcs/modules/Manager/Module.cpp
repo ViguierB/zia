@@ -9,222 +9,320 @@
 #include <thread>
 #include <memory>
 #include <iostream>
-#include <boost/filesystem/operations.hpp>
+#include <openssl/sha.h>
+#include <boost/archive/iterators/base64_from_binary.hpp>
+#include <boost/archive/iterators/transform_width.hpp>
+#include <boost/archive/iterators/ostream_iterator.hpp>
+#include <boost/filesystem.hpp>
 #include "Zany/Orchestrator.hpp"
 #include "Zany/Loader.hpp"
-#include "TcpConnexion.hpp"
+#include "../common/ModulesUtils.hpp"
+#include "../common/Json/Parser.hpp"
 
 namespace zia {
+namespace manager {
 
 class ManagerModule : public zany::Loader::AbstractModule {
 public:
-	~ManagerModule() {
-		_continue = false;
-		if (_worker.get()) {
-			_worker->join();
-		}
-	}
-
 	virtual auto	name() const -> const std::string&
 		{ static const std::string name("Manager"); return name; }
 	virtual void	init() final;
 private:
-	void	_verifConfig() {
-		auto config = this->master->getConfig();
+	inline void		_onHandleRequest(zany::Pipeline::Instance &i);
+	inline void		_onDataReady(zany::Pipeline::Instance &i);
+	inline void		_onHandleResponse(zany::Pipeline::Instance &i);
 
-		try {
-			if (config["manager"]["listening-port"].isNumber()) {
-				ManagerModule::_basicConfig["manager"]["listening-port"] = config["manager"]["listening-port"];
-			}
-		} catch (...) {}
+	inline void		_counter(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
+	inline void		_load(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
+	inline void		_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
+	inline void		_unload(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
+	inline void		_list(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
+	inline void		_execute(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result);
+	
+	static inline std::string	_sha256String(std::string &&);
+
+	template<typename Stream>
+	static inline Stream	&_sendJson(Stream &s, json::Entity &&response) {
+		std::ostringstream sstm;
+
+		sstm << response;
+
+		auto str = sstm.str();
+
+		s << "content-length: " << str.length() << "\r\n\r\n" << str;
+
+		return s;
 	}
 
-	void	_entrypoint();
-	void	handle_accept(TcpConnexion::pointer new_connection, const boost::system::error_code& error);
-
-	void	Unload(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream);
-	void	Load(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream);
-
-
-	static inline zany::Entity _basicConfig = zany::makeObject {
-	{ "manager", zany::makeObject {
-		{ "listening-port", 5768 }
-	} }
-	};
-
-	std::unique_ptr<std::thread>	_worker;
-	std::unique_ptr<boost::asio::ip::tcp::acceptor>
-					_acceptor;
-	bool							_continue = true;
+	std::atomic<std::size_t>	_requestCounter = 0;
 };
 
-void	ManagerModule::init() {
-	master->getContext().addTask([this] {
-		_verifConfig();
+std::string ManagerModule::_sha256String(std::string &&in)
+{
+	std::array<unsigned char, SHA256_DIGEST_LENGTH>	res;
+	std::stringstream								os;
 
-		_worker = std::make_unique<decltype(_worker)::element_type>(
-			std::bind(&ManagerModule::_entrypoint, this));
+	SHA256_CTX sha256;
+	SHA256_Init(&sha256);
+	SHA256_Update(&sha256, in.c_str(), in.length());
+	SHA256_Final(res.data(), &sha256);
+
+	for (auto e: res) {
+		os << std::hex << std::setw(2) << std::setfill('0') << +e;
+	}
+	return os.str();
+}
+
+void	ManagerModule::init() {
+	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_REQUEST>()
+		.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&ManagerModule::_onHandleRequest, this, std::placeholders::_1));
+
+	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_DATA_READY>()
+		.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&ManagerModule::_onDataReady, this, std::placeholders::_1));
+
+	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_RESPONSE>()
+		.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&ManagerModule::_onHandleResponse, this, std::placeholders::_1));
+}
+
+
+
+void	ManagerModule::_onHandleRequest(zany::Pipeline::Instance &i) {
+	_requestCounter++;
+
+	i.response.headers["Access-Control-Allow-Origin"] = "*";
+	i.response.headers["Access-Control-Allow-Headers"] = "manager-api, content-type";
+	i.response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTION";
+
+	if (i.serverConfig["manager"].isObject()
+	&& i.serverConfig["manager"]["password"].isString()
+	&& *i.request.headers["manager-api"] == "true") {
+		i.writerID = this->getUniqueId();
+// 		Access-Control-Allow-Origin: https://foo.bar.org
+// Access-Control-Allow-Methods: POST, GET
+		
+	}
+}
+
+void	ManagerModule::_onDataReady(zany::Pipeline::Instance &i) {
+	if (i.writerID == this->getUniqueId()) {
+		if (i.request.method == zany::HttpRequest::RequestMethods::POST
+		&& i.request.headers["content-length"].isNumber()) {
+			std::ostringstream data;
+
+			ModuleUtils::copyByLength(i.connection->stream(), data, i.request.headers["content-length"].getNumber());
+
+			auto command = json::Parser::fromString(data.str());
+
+			try {
+				if (i.serverConfig["manager"]["password"].value<zany::String>() == command["password"].value<json::String>()) {
+					i.properties["manager-command"] = zany::Property::make<json::Entity>(command);
+
+					if (i.response.headers.find("content-length") != i.response.headers.end())
+						i.response.headers.erase(i.response.headers.find("content-length"));
+
+					json::Entity result;
+					
+					_execute(i, command, result);
+
+					if (!result.isNull()) {
+						std::ostringstream stm;
+						stm << result;
+
+						auto strres = (i.properties["manager-result"] = zany::Property::make<std::string>(stm.str())).get<std::string>();
+
+						i.response.headers["content-length"] = std::to_string(strres.length());
+
+					}
+					return;
+				} else {
+					i.response.status = 401;
+					return;
+				}
+			} catch (...) {}
+		}
+		i.response.status = 400;
+	}
+}
+
+void	ManagerModule::_onHandleResponse(zany::Pipeline::Instance &i) {
+	if (i.writerID == this->getUniqueId()) {
+		if (i.properties.find("manager-result") == i.properties.end()) return;
+
+		auto	&result = i.properties["manager-result"].get<std::string>();
+
+		i.connection->stream() << "\r\n" << result;
+	}
+}
+
+void	ManagerModule::_unload(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	auto &moduleName = command["module-name"].value<json::String>();
+
+	zany::Loader::AbstractModule *toRemove = nullptr;
+
+	for (auto &module : const_cast<zany::Loader &>(this->master->getLoader())) {
+		if (module.name() == moduleName) {
+			toRemove = &module;
+			break;
+		}
+	}
+	auto connection = i.connection;
+	if (!toRemove) {
+		this->master->getContext().addTask([connection, moduleName] {
+			_sendJson(connection->stream(), json::makeObject {
+				{ "status", "fail" },
+				{ "command", "unload" },
+				{ "module-name", moduleName },
+				{ "message", "Module " + moduleName + " not found." }
+			});
+		});
+	} else {
+		this->master->unloadModule(*toRemove,
+			[connection, moduleName] {
+				_sendJson(connection->stream(), json::makeObject {
+					{ "status", "success" },
+					{ "command", "unload" },
+					{ "module-name", moduleName }
+				});
+			},
+			[connection, moduleName] (zany::Loader::Exception e) {
+				_sendJson(connection->stream(), json::makeObject {
+					{ "status", "fail" },
+					{ "command", "unload" },
+					{ "module-name", moduleName },
+					{ "message", e.what() }
+				});
+			});
+	}
+}
+
+void	ManagerModule::_load(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	boost::filesystem::path path(command["module-path"].value<json::String>());
+	
+	bool found = false;
+	auto connection = i.connection;
+
+	if ((boost::filesystem::is_regular_file(path) || boost::filesystem::is_symlink(path))
+		&& path.extension() ==
+#if defined(ZANY_ISWINDOWS)
+			".dll"
+#else
+			".so"
+#endif
+		) {
+		auto mp =
+#if defined(ZANY_ISWINDOWS)
+			path.lexically_normal();
+#else
+			boost::filesystem::path(
+				(boost::filesystem::is_symlink(path)
+					? boost::filesystem::read_symlink(path)
+					: path
+				).string()
+			).lexically_normal()
+#endif
+		;
+		this->master->loadModule(path.generic_string(),
+		[connection, path] (auto &module) {
+			_sendJson(connection->stream(), json::makeObject {
+				{ "status", "success" },
+				{ "command", "load" },
+				{ "module-path", path.string() },
+				{ "module-name", module.name() }
+			});
+		}, [connection, path] (auto error) {
+			_sendJson(connection->stream(), json::makeObject {
+				{ "status", "fail" },
+				{ "command", "load" },
+				{ "module-path", path.string() },
+				{ "message", error.what() }
+			});
+		});
+		found = true;
+	}
+	if (!found) {
+		this->master->getContext().addTask([connection, path] {
+			_sendJson(connection->stream(), json::makeObject {
+				{ "status", "fail" },
+				{ "command", "load" },
+				{ "module-path", path.string() },
+				{ "message", "Module not found." }
+			});
+		});
+	}
+}
+
+void	ManagerModule::_list(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	result = json::Entity::ARR;
+	for (auto &m: const_cast<zany::Loader&>(this->master->getLoader())) {
+		json::Entity mdl( json::makeObject {
+			{ "name", m.name() },
+			{ "badges", json::Entity::ARR }
+		} );
+		if (m.isACoreModule()) {
+			mdl["badges"].push("core");
+		}
+		if (m.isAParser()) {
+			mdl["badges"].push("parser");
+		}
+		if (m.getUniqueId() == getUniqueId()) {
+			mdl["badges"].push("me :)");
+		}
+
+		result.push(mdl);
+	}
+}
+
+void	ManagerModule::_counter(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	result = json::Entity(json::makeObject {
+		{ "count", (long) _requestCounter.load() }
 	});
 }
 
-void	ManagerModule::handle_accept(TcpConnexion::pointer new_connection, const boost::system::error_code& error) {
-	if (!error) {
-		TcpConnexion::pointer new_connection =
-			TcpConnexion::create(_acceptor->get_io_service());
-
-
-		auto tcpstream = std::shared_ptr<boost::asio::ip::tcp::iostream>();
-
-		_acceptor->accept(tcpstream->socket());
-
-		std::thread	thread([tcpstream] {
-			std::cout << tcpstream->rdbuf();
-		});
-	}
-}
-
-void	ManagerModule::Unload(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream) {
-	std::stringstream comm;
-	comm << line;
-	comm >> line;
-
-	while (comm.rdbuf()->in_avail() != 0) {
-		line.clear();
-		comm >> line;
-		zany::Loader::AbstractModule *toRemove = nullptr;
-
-		for (auto &module : const_cast<zany::Loader &>(this->master->getLoader())) {
-			if (module.name() == line) {
-				toRemove = &module;
-				break;
-			}
-		}
-		if (!toRemove) {
-			*tcpstream << "Module " << line << " not found." << std::endl;
-		} else {
-			std::condition_variable		locker;
-			std::mutex			mtx;
-			std::unique_lock<decltype(mtx)>	ulock(mtx);
-
-			this->master->unloadModule(*toRemove,
-						   [&] {
-							   *tcpstream
-								   << "Unloading "
-								   << line
-								   << ": Ok"
-								   << std::endl;
-							   locker.notify_all();
-						   },
-						   [&] (zany::Loader::Exception e) {
-							   *tcpstream
-								   << "Unloading "
-								   << line
-								   << ": Ko"
-								   << std::endl
-								   << e.what()
-								   << std::endl;
-							   locker.notify_all();
-						   });
-			locker.wait(ulock);
-		}
-
-	}
-}
-
-void	ManagerModule::Load(std::string &line, std::shared_ptr<boost::asio::ip::tcp::iostream> tcpstream) {
-	std::stringstream comm;
-	boost::filesystem::path path;
-	comm << line;
-	comm >> line;
-	bool found = false;
-
-	while (comm.rdbuf()->in_avail() != 0) {
-		line.clear();
-		comm >> line;
-		found = false;
-		path = line;
-
-		if ((boost::filesystem::is_regular_file(path) || boost::filesystem::is_symlink(path))
-		    && path.extension() ==
-#if defined(ZANY_ISWINDOWS)
-		       ".dll"
-#else
-		       ".so"
-#endif
-			) {
-			std::condition_variable		locker;
-			std::mutex			mtx;
-			std::unique_lock<decltype(mtx)>	ulock(mtx);
-			auto mp =
-#if defined(ZANY_ISWINDOWS)
-				it->path().lexically_normal();
-#else
-				boost::filesystem::path(
-					(boost::filesystem::is_symlink(path)
-					 ? boost::filesystem::read_symlink(path)
-					 : path
-					).string()
-				).lexically_normal()
-#endif
-			;
-			this->master->loadModule(path.generic_string(), [&] (auto &module) {
-				*tcpstream << "Module " << module.name() << " loaded." << std::endl;
-				locker.notify_all();
-			}, [] (auto error) {
-				std::cerr << error.what() << std::endl;
+void	ManagerModule::_refresh(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	auto connection = i.connection;
+#	if defined(ZANY_ISUNIX)
+		if ((void*)(this->master->*(&zany::Orchestrator::reload)) == (void*)(&zany::Orchestrator::reload)) {
+			this->master->getContext().addTask([connection] {
+				_sendJson(connection->stream(), json::makeObject {
+					{ "status", "fail" },
+					{ "command", "refresh" },
+					{ "message", "Refresh not implemented on this server" }
+				});
 			});
-			locker.wait(ulock);
-			found = true;
+			return;
 		}
-		if (!found)
-			*tcpstream << "Module " << line << " not found." << std::endl;
-	}
+#	else
+		// disabled feature on windows, because of MSVC...
+#	endif
+	this->master->getContext().addTask([connection] {
+		_sendJson(connection->stream(), json::makeObject {
+			{ "status", "success" },
+			{ "command", "refresh" }
+		});
+	});
+	this->master->reload();
 }
 
-void	ManagerModule::_entrypoint() {
-	boost::asio::io_service io_service;
-	_acceptor = std::make_unique<decltype(_acceptor)::element_type>(io_service, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 4222));
-	TcpConnexion::pointer new_connection =
-		TcpConnexion::create(_acceptor->get_io_service());
+void	ManagerModule::_execute(zany::Pipeline::Instance &i, json::Entity &command, json::Entity &result) {
+	try {
+		if (command["command"] == "list") {
+			_list(i, command, result);
+		} else if (command["command"] == "unload") {
+			_unload(i, command, result);
+		} else if (command["command"] == "load") {
+			_load(i, command, result);
+		} else if (command["command"] == "refresh") {
+			_refresh(i, command, result);
+		} else if (command["command"] == "counter") {
+			_counter(i, command, result);
+		}
+	} catch (...) {}
+}
 
-	std::list<std::thread>	ts;
-
-	while (true) {
-		auto tcpstream = std::make_shared<boost::asio::ip::tcp::iostream>();
-
-		_acceptor->accept(tcpstream->socket());
-
-		ts.emplace_back([this, tcpstream] {
-			std::string line;
-
-			*tcpstream << "--> ";
-			while (std::getline(*tcpstream, line)) {
-
-				if (line == "LIST") {
-					for (auto const &module : const_cast<zany::Loader &>(master->getLoader())) {
-						*tcpstream << module.name() << '\n';
-					}
-				} else if (line.find("UNLOAD") == 0) {
-					Unload(line, tcpstream);
-				} else if (line.find("LOAD") == 0) {
-					Load(line, tcpstream);
-				}else if (line == "QUIT") {
-					*tcpstream << "FERME TOI." << std::endl;
-					tcpstream->socket().close();
-					return;
-				}
-				*tcpstream << std::endl << "--> ";
-			}
-		});
-	}
 }
 }
 
 extern "C" ZANY_DLL
 zany::Loader::AbstractModule	*entrypoint() {
-	return new zia::ManagerModule();
-}
-
-void salut() {
-
+	return new zia::manager::ManagerModule();
 }

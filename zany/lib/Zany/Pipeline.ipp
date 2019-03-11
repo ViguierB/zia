@@ -32,9 +32,9 @@ struct _PRSign {
 template<Pipeline::Priority P, Pipeline::Rights R>
 inline Pipeline::Set::ID	Pipeline::Set::addTask(typename _FunctionTypeSelector<R>::type const &fct) {
 	std::lock_guard<decltype(_mtx)>	_guard(_mtx);
-	auto newId = _genId();
-
 	auto *hdl = new (typename _FunctionTypeSelector<R>::type)(fct);
+
+	auto newId = (std::uint64_t) hdl;
 	_handlers[__hidden::_PRSign<P, R>::value].insert(std::make_pair(newId, std::shared_ptr<void>(hdl)));
 	return { this, __hidden::_PRSign<P, R>::value, newId };
 }

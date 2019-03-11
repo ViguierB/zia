@@ -7,7 +7,7 @@
 		{
 			"host": "localhost",
 			"port": 8080,
-			"path": "def/",
+			"path": "www/def/",
 			"mime": [
 				[ ".test", "text/plain" ],
 				[ ".txt", "text/plain" ],
@@ -17,7 +17,6 @@
 		{
 			"host": "secure.localhost",
 			"port": 4433,
-			"path": "def/",
 			"rewrite": [
 				{
 					"if": [
@@ -36,6 +35,7 @@
 					"rule": "/$salut"
 				}
 			],
+			"path": "www/def/",
 			"ssl": {
 				"certificate": "cert/server.pem",
 				"private-key": "cert/server.pem"
@@ -44,6 +44,18 @@
 				[ ".test", "text/plain" ],
 				[ ".txt", "text/plain" ]
 			]
+		},
+		{
+			"host": "manager.localhost",
+			"port": 4433,
+			"path": "www/manager/",
+			"ssl": {
+				"certificate": "cert/server.pem",
+				"private-key": "cert/server.pem"
+			},
+			"manager": {
+				"password": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+			}
 		},
 		{
 			"host": "reverse.localhost",

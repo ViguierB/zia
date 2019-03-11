@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Zia Manager</title>
+		<meta charSet="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="icon" href="favicon.ico" />
+
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+		<link rel="stylesheet" href="style.css"/>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+		<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/js-sha256/0.9.0/sha256.min.js"></script>
+		<script src="script.js"></script>
+	</head>
+	<body>
+		<!-- <div id="top"></div> -->
+		<div id="header">
+			<div class="container">
+				<div class="col-12 row">
+					<h2 id="title">Zia Manager</h2>
+				</div>
+			</div>
+		</div>
+
+		<div style="display: none"  id="content" class="container">
+			<div id="buttons-list" style="margin: 30px 0 5px 0; display: flex;">
+				<div style="margin-right: auto; display: flex;">
+					<a id="add-button" class="btn btn-light" style="display: flex;">
+						<i class="material-icons">add</i>
+					</a>
+					<a id="remove-button" class="btn btn-light" style="display: flex;">
+						<i class="material-icons">remove</i>
+					</a>
+				</div>
+				<div style="margin-left: auto">
+					<a id="reload-button" class="btn btn-light" style="display: flex;">
+						<i class="material-icons">refresh</i>
+					</a>
+				</div>
+			</div>
+			<ul class="list-group">
+			</ul>
+			<div style="margin: 25px 10px; display: flex;">
+				<span id="counter" style="display: flex; margin-right: auto;"></span>
+				<a id="server-refresh-button" class="btn btn-warning" style="display: flex; color: white; margin-left: auto;">
+					Refresh the server
+				</a>
+			</div>
+		</div>
+
+		<div id="bad-password">
+			<div class="container">
+				<div class="card" style="max-width: 25rem; margin: auto; margin-top: 150px;">
+					<div class="card-body">
+						<div id="password-input" class="input-group mb-3 col h-center">
+							<div class="input-group-prepend">
+								<span class="input-group-text" id="basic-addon1">Password</span>
+							</div>
+							<input id="password-input__" type="password" class="form-control" aria-label="Password" aria-describedby="basic-addon1">
+						</div>
+						<a id="submit-password" style="margin-left: 15px; margin-top: 25px; width: calc(100% - 30px); color: white;" class="btn btn-primary">ok</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>
