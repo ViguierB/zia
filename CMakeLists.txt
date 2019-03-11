@@ -11,7 +11,7 @@ else ()
 	)
 	#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ggdb")
 	set(CMAKE_CXX_FLAGS_DEBUG
-		"${CMAKE_CXX_FLAGS_DEBUG} -ggdb -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter"
+		"${CMAKE_CXX_FLAGS_DEBUG} -ggdb -g -W -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter"
 	)
 endif ()
 
@@ -46,6 +46,7 @@ set(SSLCORE_NAME SslCoreModule)
 set(PHPCGI_NAME PhpCgiModule)
 set(MANAGER_NAME ManagerModule)
 set(REVERSEPROXY_NAME ReverseProxyModule)
+set(REWRITE_NAME RewriteModule)
 set(MIME_NAME MimeModule)
 
 set(JSONPARSER_MODULE_SRCS
@@ -90,7 +91,13 @@ set(REVERSEPROXY_MODULE_SRCS
 	srcs/modules/ReverseProxy/Module.cpp
 )
 
+set(REWRITE_MODULE_SRCS
+	zany/lib/Zany.hpp
+	srcs/modules/Rewrite/Module.cpp
+)
+
 add_library(${REVERSEPROXY_NAME} SHARED ${REVERSEPROXY_MODULE_SRCS})
+add_library(${REWRITE_NAME} SHARED ${REWRITE_MODULE_SRCS})
 add_library(${JSONPARSER_NAME} SHARED ${JSONPARSER_MODULE_SRCS})
 add_library(${HTTP_NAME} SHARED ${HTTP_MODULE_SRCS})
 add_library(${MIME_NAME} SHARED ${MIME_MODULE_SRCS})
@@ -98,6 +105,7 @@ add_library(${SSLCORE_NAME} SHARED ${SSLCORE_MODULE_SRCS})
 add_library(${PHPCGI_NAME} SHARED ${PHPCGI_MODULE_SRCS})
 add_library(${MANAGER_NAME} SHARED ${MANAGER_MODULE_SRCS})
 target_link_libraries(${REVERSEPROXY_NAME} ${CONAN_LIBS})
+target_link_libraries(${REWRITE_NAME} ${CONAN_LIBS})
 target_link_libraries(${SSLCORE_NAME} ${CONAN_LIBS})
 target_link_libraries(${MANAGER_NAME} ${CONAN_LIBS})
 target_link_libraries(${HTTP_NAME} ${CONAN_LIBS})

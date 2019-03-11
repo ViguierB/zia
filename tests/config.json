@@ -17,6 +17,24 @@
 		{
 			"host": "secure.localhost",
 			"port": 4433,
+			"rewrite": [
+				{
+					"if": [
+						{
+							"path": "/test"
+						}
+					],
+					"var": [
+						"salut"
+					],
+					"set": [
+						{
+							"salut": "test.php"
+						}
+					],
+					"rule": "/$salut"
+				}
+			],
 			"path": "www/def/",
 			"ssl": {
 				"certificate": "cert/server.pem",
