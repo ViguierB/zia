@@ -11,7 +11,8 @@
 			"preLaunchTask": "build-debug",
 			"program": "${workspaceFolder}/build-Linux/bin/zia",
 			"args": [
-				"--config", "./config.json"
+				"--config", "./config.json",
+				"--worker-thread-number", "1"
 			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}",

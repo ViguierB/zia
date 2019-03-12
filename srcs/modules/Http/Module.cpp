@@ -30,6 +30,7 @@ private:
 	static inline auto	_getReasonPhrase(int code) -> const std::string&;
 	inline bool			_isAllowedExt(boost::filesystem::path const &p, zany::Pipeline::Instance const &i) const;
 	static inline void	_parsePath(zany::Pipeline::Instance &i, std::string const &path);
+	static inline bool	_urlDecode(const std::string& in, std::string& out);
 };
 
 void	HttpModule::init() {
@@ -115,6 +116,45 @@ void	HttpModule::_parsePath(zany::Pipeline::Instance &i, std::string const &path
 	}
 }
 
+bool	HttpModule::_urlDecode(const std::string& in, std::string& out)
+{
+  out.clear();
+  out.reserve(in.size());
+  for (std::size_t i = 0; i < in.size(); ++i)
+  {
+    if (in[i] == '%')
+    {
+      if (i + 3 <= in.size())
+      {
+        int value = 0;
+        std::istringstream is(in.substr(i + 1, 2));
+        if (is >> std::hex >> value)
+        {
+          out += static_cast<char>(value);
+          i += 2;
+        }
+        else
+        {
+          return false;
+        }
+      }
+      else
+      {
+        return false;
+      }
+    }
+    else if (in[i] == '+')
+    {
+      out += ' ';
+    }
+    else
+    {
+      out += in[i];
+    }
+  }
+  return true;
+}
+
 void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 	i.writerID = this->getUniqueId();
 	i.response.headers["server"] = "Zia (PCinc)";
@@ -132,9 +172,11 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 		i.request.method = ModuleUtils::getMethodFromString(str);
 		i.request.methodString = str;
 		
+		std::string url;
 		stm >> str;
 		i.properties["basepath"] = zany::Property::make<std::string>(str);
-		HttpModule::_parsePath(i, str);
+		_urlDecode(str, url);
+		HttpModule::_parsePath(i, url);
 
 		stm >> str;
 		std::istringstream pstm(str);
@@ -201,6 +243,15 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 				+ "/" + i.request.path
 			).lexically_normal().string();
 		}
+		if (boost::filesystem::is_directory(i.request.path)) {
+			for (auto &entry: boost::make_iterator_range(boost::filesystem::directory_iterator(i.request.path))) {
+				boost::filesystem::path	p(entry);
+				if (boost::filesystem::is_regular_file(p)
+				&& boost::to_lower_copy(p.stem().string()) == "index") {
+					i.request.path = p.lexically_normal().string();
+				}
+			}
+		}
 	}
 }
 
@@ -212,7 +263,7 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 	if (i.response.status != 200 || (i.response.status == 200 && i.writerID != this->getUniqueId())) {
 	} else if (!boost::filesystem::is_regular_file(i.request.path)) {
 		i.response.status = 404;
-	} else if (i.request.method == zany::HttpRequest::RequestMethods::GET) {
+	} else if (i.request.method == zany::HttpRequest::RequestMethods::GET && i.writerID == this->getUniqueId()) {
 		auto &fs = (i.properties["filestream"] = zany::Property::make<std::ifstream>(i.request.path)).get<std::ifstream>();
 
 		if (fs.bad()) {

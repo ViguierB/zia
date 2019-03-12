@@ -23,7 +23,7 @@ private:
 	inline void		_onHandleRequest(zany::Pipeline::Instance &i);
 	inline void		_onHandleResponse(zany::Pipeline::Instance &i);
 
-	inline std::string	_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i) const;
+	inline bool	_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i, std::string &) const;
 };
 
 void	MimeModule::init() {
@@ -34,7 +34,7 @@ void	MimeModule::init() {
 	// 	.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&MimeModule::_onHandleResponse, this, std::placeholders::_1));
 }
 
-std::string	MimeModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i) const {
+bool	MimeModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i, std::string &type) const {
 	constexpr std::pair<const char*, const char *> defexts[] = {
 		{ ".html", "text/html" },
 		{ ".htm", "text/html" },
@@ -56,38 +56,36 @@ std::string	MimeModule::_isAllowedExt(boost::filesystem::path const &path, zany:
 
 	try {
 		auto &cexts = i.serverConfig["mime"];
-		if (!cexts.isArray())
-			return "";
+		if (!cexts.isArray()) 
+			return false;
 		for (auto const &ext: cexts.value<zany::Array>()) {
 			if (ext.isArray() == false) {
 				std::cerr << "Bad Mime type" << std::endl;
 				continue;
 			}
-			if (ext.isString() && mext == ext[0].value<zany::String>()) {
-				return ext[1].value<zany::String>();
+
+			if (ext.value<zany::Array>()[0].isString() && mext == ext.value<zany::Array>()[0].value<zany::String>()) {
+				if (ext.value<zany::Array>().size() >= 2) {
+					type = ext.value<zany::Array>()[1].value<zany::String>();
+				} else {
+					type = "";
+				}
+				return true;
 			}
 		}
 	} catch (...) {}
-	return "";
+	return false;
 }
 
 void	MimeModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	if (i.properties.find("reverse-proxy-enabled") != i.properties.end()) return;
-	if (boost::filesystem::is_directory(i.request.path)) {
-		for (auto &entry: boost::make_iterator_range(boost::filesystem::directory_iterator(i.request.path))) {
-			boost::filesystem::path	p(entry);
-			if (boost::filesystem::is_regular_file(p)
-			&& boost::to_lower_copy(p.stem().string()) == "index") {
-				i.request.path = p.lexically_normal().string();
-			}
-		}
-	}
 	
-	auto mime = _isAllowedExt(i.request.path, i);
+	std::string mime;
+	auto res = _isAllowedExt(i.request.path, i, mime);
 
-	if (mime.empty()) {
+	if (mime.empty() && !res) {
 		i.response.status = 403;
-	} else if (i.response.status == 200) {
+	} else if (i.response.status == 200 && !mime.empty() && res) {
 		i.response.headers["content-type"] = mime;
 		i.response.headers["content-length"] = std::to_string(boost::filesystem::file_size(i.request.path));
 	}
