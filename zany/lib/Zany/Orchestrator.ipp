@@ -110,11 +110,11 @@ void	Orchestrator::unloadModule(Loader::AbstractModule const &module, std::funct
 auto	Orchestrator::startPipeline(zany::Connection::SharedInstance connection, std::function<void(zany::Pipeline::Instance&)> const &beforeAll) {
 	auto pipeline = Pipeline::makePipelineInstance(connection);
 
+	if (beforeAll != nullptr)
+		beforeAll(*pipeline);
 	if (_safeIsComputing == false) {
 		this->_pline.getThreadPool().runTask([this, pipeline, beforeAll] {
 			try {
-				if (beforeAll != nullptr)
-					beforeAll(*pipeline);
 				_onPipelineReady(*pipeline);
 			} catch (std::exception &e) {
 				PipelineExecutionError	error(e.what());

@@ -103,7 +103,8 @@
 			"headers": {
 				"request": {
 					"host": "holidev.net:8088",
-					"cache-control": "no-cache"
+					"cache-control": "no-cache",
+					"pragma": "no-cache"
 				}
 			}
 		},

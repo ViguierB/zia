@@ -74,6 +74,8 @@ class Listener {
 public:
 	class Connection: zany::Connection {
 	public:
+		~Connection() {}
+
 		template<typename ...Args>
 		static auto make(Args &&...args) {
 			return SharedInstance(reinterpret_cast<zany::Connection*>(
@@ -95,7 +97,6 @@ public:
 			_stream = std::make_unique<decltype(_stream)::element_type>(static_cast<std::streambuf*>(&*_sslstream));
 		}
 	private:
-		~Connection() {}
 		Connection(boost::asio::io_service& ios, Listener *parent):
 				zany::Connection(),
 				_socket(ios),
@@ -106,6 +107,7 @@ public:
 										_sslstream;
 		std::unique_ptr<std::iostream>	_stream;
 		Listener						*_parent;
+		std::mutex						_handshakeMutex;
 	};
 
 
@@ -151,48 +153,48 @@ public:
 	}
 
 	void	initVHostConfig(zany::Entity const &cfg) {
-	try {
-		auto &vHosts = cfg["server"].value<zany::Array>();
+		try {
+			auto &vHosts = cfg["server"].value<zany::Array>();
 
-		for (auto &vhost: vHosts) {
-			try {
-				auto it = vhost.value<zany::Object>().find("ssl");
-				if (it == vhost.value<zany::Object>().end())
-					continue;
+			for (auto &vhost: vHosts) {
+				try {
+					auto it = vhost.value<zany::Object>().find("ssl");
+					if (it == vhost.value<zany::Object>().end())
+						continue;
 
-				auto &sslc = it->second;
-				auto targetPort = (std::uint16_t)vhost["port"].to<int>();
-				if (targetPort != _acceptor.local_endpoint().port())
-					continue;
-				
-				
-				std::string const *chainfile = nullptr;
-				std::string const *certfile = nullptr;
-				std::string const *proto = nullptr;
-				try { chainfile = &sslc["certificate-chain"].value<zany::String>(); } catch (...) {} 
-				try { certfile = &sslc["certificate"].value<zany::String>(); } catch (...) {}
-				try { proto = &sslc["protocol"].value<zany::String>(); } catch (...) {}
-				
-				auto vhit = vhostsConfigs.emplace(
-					std::pair<std::string, VirtualServersConfig>(
-						vhost["host"].value<zany::String>(),
-						VirtualServersConfig {
+					auto &sslc = it->second;
+					auto targetPort = (std::uint16_t)vhost["port"].to<int>();
+					if (targetPort != _acceptor.local_endpoint().port())
+						continue;
+					
+					
+					std::string const *chainfile = nullptr;
+					std::string const *certfile = nullptr;
+					std::string const *proto = nullptr;
+					try { chainfile = &sslc["certificate-chain"].value<zany::String>(); } catch (...) {} 
+					try { certfile = &sslc["certificate"].value<zany::String>(); } catch (...) {}
+					try { proto = &sslc["protocol"].value<zany::String>(); } catch (...) {}
+					
+					auto vhit = vhostsConfigs.emplace(
+						std::pair<std::string, VirtualServersConfig>(
 							vhost["host"].value<zany::String>(),
-							targetPort,
-							(chainfile) ? *chainfile : "",
-							(certfile) ? *certfile : "",
-							sslc["private-key"].value<zany::String>(),
-							(proto) ? *proto : constant::defSslProtocol
-						}
-					)
-				);
-				vhit->second.init();
-			} catch (std::exception const &e) {
-				std::cerr << e.what() << std::endl;
+							VirtualServersConfig {
+								vhost["host"].value<zany::String>(),
+								targetPort,
+								(chainfile) ? *chainfile : "",
+								(certfile) ? *certfile : "",
+								sslc["private-key"].value<zany::String>(),
+								(proto) ? *proto : constant::defSslProtocol
+							}
+						)
+					);
+					vhit->second.init();
+				} catch (std::exception const &e) {
+					std::cerr << e.what() << std::endl;
+				}
 			}
-		}
-	} catch (...) {}
-}
+		} catch (...) {}
+	}
 
 	std::function<void (zany::Connection::SharedInstance nConnection)>
 									onHandleAccept;
@@ -211,19 +213,17 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 		struct Cap {
 			Connection					*co;
 			zany::Pipeline::Instance	*pipeline;
-		};
-		auto *data = new Cap {
+		} data {
 			this,
 			&pipeline
 		};
 		
-		typedef int (*callback_t)(SSL*,int*,decltype(data));
-		static callback_t callback = [] (SSL *ssl, int *, decltype(data) _cap) -> int {
-			std::unique_ptr<Cap>	cap(_cap);
+		typedef int (*callback_t)(SSL*,int*,decltype(data)*);
+		static callback_t callback = [] (SSL *ssl, int *, decltype(data) *cap) -> int {
 			try {
 				const char *hostname = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 				
-				if (!hostname || !_cap || !cap->co || !cap->co->parent()) {
+				if (!hostname || !cap || !cap->co || !cap->co->parent()) {
 					return -1;
 				}
 				auto vhit = cap->co->parent()->vhostsConfigs.find(hostname);
@@ -239,7 +239,7 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 
 		::SSL_set_fd(sslData.ssl, nativeSocket());
 
-		::SSL_CTX_set_tlsext_servername_arg(sslData.ref_ctx, data);
+		::SSL_CTX_set_tlsext_servername_arg(sslData.ref_ctx, &data);
 		::SSL_CTX_set_tlsext_servername_callback(sslData.ref_ctx, callback);
 
 		if (::SSL_accept(sslData.ssl) <= 0) {
