@@ -132,9 +132,10 @@ auto	Orchestrator::startPipeline(zany::Connection::SharedInstance connection, st
 void	Orchestrator::waitForSafeHandlersFinished() {
 	_ctx.addTask([this] {
 		_safeIsComputing = true;
-		_pline.getThreadPool().waitForEmpty();
 		{
 			std::lock_guard<decltype(_safeMtx)>	_guard(_safeMtx);
+			
+			_pline.getThreadPool().waitForEmpty();
 			for (auto &hdl: _safeHdls) {
 				hdl();
 			}

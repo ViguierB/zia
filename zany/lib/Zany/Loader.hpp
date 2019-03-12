@@ -42,7 +42,7 @@ public:
 		ID			_unique;
 	public:
 		AbstractModule(): _unique(reinterpret_cast<ID>(this)) {}
-		virtual inline ~AbstractModule() = default;
+		virtual ~AbstractModule() = default;
 
 		/*
 		** Called after load
@@ -132,6 +132,7 @@ private:
 			: _h(h), _m(am) {}
 		~ModuleWrapper() {
 			delete _m;
+			std::this_thread::yield();
 #			if defined(ZANY_ISUNIX)
 				::dlclose(_h);
 #			else
