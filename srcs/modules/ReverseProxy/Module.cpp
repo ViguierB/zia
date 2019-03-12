@@ -145,14 +145,13 @@ void	ReverseProxyModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 		socket.native_handle(),
 		((vh.target.scheme == "https") ? true : false)
 	)).get<SslStreamBuf>();
+
 	auto &stream = (i.properties["reverse-proxy_stream"] = zany::Property::make<std::iostream>(&streambuf)).get<std::iostream>();
 
 	stream << i.request.methodString << " " << i.properties["basepath"].get<std::string>()  << " " << i.request.protocol << "/" << i.request.protocolVersion << "\r\n";
 	
 	for (auto it = i.request.headers.begin(); it != i.request.headers.end();) {
-		if (it->first == "host") {
-			stream << "host: " << vh.target.host << ":" << vh.target.port << "\r\n";
-		} else if (it->first == "connection") {
+		if (it->first == "connection") {
 		} else {
 			stream << it->first << ": " << *it->second << "\r\n";
 		}
@@ -160,6 +159,7 @@ void	ReverseProxyModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	}
 	stream << "\r\n";
 	stream.flush();
+	stream.sync();
 
 	i.properties["reverse-proxy-enabled"] = zany::Property::make<bool>(true);
 }
@@ -199,7 +199,7 @@ void	ReverseProxyModule::_onDataReady(zany::Pipeline::Instance &i) {
 void	ReverseProxyModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	if (i.writerID != getUniqueId()) return;
 	auto 		&stream = i.properties["reverse-proxy_stream"].get<std::iostream>();
-	
+
 	if (i.response.headers["content-length"].isNumber()) {
 		i.connection->stream() << "\r\n";
 		ModuleUtils::copyByLength(stream, i.connection->stream(), i.response.headers["content-length"].getNumber());
@@ -213,6 +213,8 @@ void	ReverseProxyModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	}
 	i.connection->stream().flush();
 	i.connection->stream().sync();
+
+	
 }
 
 }

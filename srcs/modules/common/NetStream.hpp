@@ -24,7 +24,19 @@ namespace zia {
 struct SslUtils {
 	~SslUtils() {
 		if (ssl) {
+#			if defined(ZANY_ISUNIX)
+				sigset_t origmask;
+				sigset_t sigmask;
+
+				sigemptyset(&sigmask);
+				sigaddset(&sigmask, SIGPIPE);
+
+				sigprocmask(SIG_BLOCK, &sigmask, &origmask);
+#			endif
 			::SSL_shutdown(ssl);
+#			if defined(ZANY_ISUNIX)
+				sigprocmask(SIG_SETMASK, &origmask, NULL);
+#			endif
 			::SSL_free(ssl);
 		}
 		if (free_ctx) {
@@ -53,29 +65,29 @@ private:
 		return &thisRef;
 	}
 
-// #if defined(ZANY_ISUNIX)
-// 	template<typename Handler>
-// 	inline std::streamsize	sigWrapper(Handler &&hdl) {
-// 		if (_error) return 0;
-// 		auto **__this = getThis();
-// 		sigset_t origmask;
-// 		sigset_t sigmask;
+#if defined(ZANY_ISUNIX)
+	template<typename Handler>
+	inline std::streamsize	sigWrapper(Handler &&hdl) {
+		if (_error) return 0;
+		auto **__this = getThis();
+		sigset_t origmask;
+		sigset_t sigmask;
 
-// 		*__this = this;
-// 		sigemptyset(&sigmask);
-// 		sigaddset(&sigmask, SIGPIPE);
+		*__this = this;
+		sigemptyset(&sigmask);
+		sigaddset(&sigmask, SIGPIPE);
 
-// 		sigprocmask(SIG_BLOCK, &sigmask, &origmask);
-// 		auto res = hdl();
-// 		sigprocmask(SIG_SETMASK, &origmask, NULL);
-// 		return res;
-// 	}
-// #else
+		sigprocmask(SIG_BLOCK, &sigmask, &origmask);
+		auto res = hdl();
+		sigprocmask(SIG_SETMASK, &origmask, NULL);
+		return res;
+	}
+#else
 	template<typename Handler>
 	inline std::streamsize	sigWrapper(Handler &&hdl) {
 		return hdl();
 	}
-//#endif
+#endif
 
 	static void _sigpipeCatchHandler(int) {
 		auto **__this = getThis();

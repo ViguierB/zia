@@ -89,10 +89,6 @@ void	ManagerModule::init() {
 void	ManagerModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 	_requestCounter++;
 
-	i.response.headers["Access-Control-Allow-Origin"] = "*";
-	i.response.headers["Access-Control-Allow-Headers"] = "manager-api, content-type";
-	i.response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTION";
-
 	if (i.serverConfig["manager"].isObject()
 	&& i.serverConfig["manager"]["password"].isString()
 	&& *i.request.headers["manager-api"] == "true") {

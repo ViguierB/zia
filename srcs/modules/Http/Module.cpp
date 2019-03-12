@@ -31,6 +31,7 @@ private:
 	inline bool			_isAllowedExt(boost::filesystem::path const &p, zany::Pipeline::Instance const &i) const;
 	static inline void	_parsePath(zany::Pipeline::Instance &i, std::string const &path);
 	static inline bool	_urlDecode(const std::string& in, std::string& out);
+	inline void			_setHeaders(zany::Pipeline::Instance &i);
 };
 
 void	HttpModule::init() {
@@ -155,6 +156,19 @@ bool	HttpModule::_urlDecode(const std::string& in, std::string& out)
   return true;
 }
 
+void	HttpModule::_setHeaders(zany::Pipeline::Instance &i) {
+	try {
+		if (i.serverConfig.isObject() && i.serverConfig["headers"].isObject() && i.serverConfig["request"].isObject()) {
+			auto hds = i.serverConfig["headers"]["request"].value<zany::Object>();
+
+			for (auto &el: hds) {
+				if (!el.second.isString()) continue;
+				i.request.headers[el.first] = el.second.value<zany::String>();
+			}
+		}
+	} catch(...) {}
+}
+
 void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 	i.writerID = this->getUniqueId();
 	i.response.headers["server"] = "Zia (PCinc)";
@@ -252,6 +266,7 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 				}
 			}
 		}
+		_setHeaders(i);
 	}
 }
 
@@ -277,6 +292,17 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 	stm << resp.protocol << '/' << resp.protocolVersion
 		<< ' ' << resp.status << ' ' << _getReasonPhrase(resp.status);
 	
+	try {
+		if (i.serverConfig.isObject() && i.serverConfig["headers"].isObject() && i.serverConfig["response"].isObject()) {
+			auto hds = i.serverConfig["headers"]["response"].value<zany::Object>();
+
+			for (auto &el: hds) {
+				if (!el.second.isString()) continue;
+				i.response.headers[el.first] = el.second.value<zany::String>();
+			}
+		}
+	} catch(...) {}
+
 	for (auto &h: resp.headers) {
 		stm << "\r\n" << h.first << ": " << *h.second;
 	}
