@@ -95,7 +95,7 @@ public:
 
 	template<typename SourceT, typename TargetT>
 	static inline void	copyByLength(SourceT &&source, TargetT &&target, std::size_t contentlen) {
-		thread_local char	buffer[1024];
+		thread_local char	buffer[2048];
 		std::streamsize		sread;
 
 		while (contentlen > 0) {

@@ -208,22 +208,26 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 	if (!(*_sslstream)->isSslDisabled()) {
 		pipeline.request.port = _parent->_acceptor.local_endpoint().port();
 
-		struct {
+		struct Cap {
 			Connection					*co;
 			zany::Pipeline::Instance	*pipeline;
-		} data {
+		};
+		auto *data = new Cap {
 			this,
 			&pipeline
 		};
 		
-		typedef int (*callback_t)(SSL*,int*,decltype(data)*);
-		static callback_t callback = [] (SSL *ssl, int *, decltype(data)*cap) -> int {
+		typedef int (*callback_t)(SSL*,int*,decltype(data));
+		static callback_t callback = [] (SSL *ssl, int *, decltype(data) _cap) -> int {
+			std::unique_ptr<Cap>	cap(_cap);
 			try {
 				const char *hostname = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 				
+				if (!hostname || !_cap || !cap->co || !cap->co->parent()) {
+					return -1;
+				}
 				auto vhit = cap->co->parent()->vhostsConfigs.find(hostname);
 				if (vhit == cap->co->parent()->vhostsConfigs.end()) return 1;
-
 				
 				vhit->second.link(ssl);
 
@@ -235,12 +239,13 @@ void Listener::Connection::doHandshake(zany::Pipeline::Instance &pipeline) {
 
 		::SSL_set_fd(sslData.ssl, nativeSocket());
 
-		::SSL_CTX_set_tlsext_servername_arg(sslData.ref_ctx, &data);
+		::SSL_CTX_set_tlsext_servername_arg(sslData.ref_ctx, data);
 		::SSL_CTX_set_tlsext_servername_callback(sslData.ref_ctx, callback);
 
 		if (::SSL_accept(sslData.ssl) <= 0) {
 			throw std::runtime_error(std::string("OpenSSL: ") + ERR_error_string(ERR_get_error(), nullptr));
 		}
+
 	}
 }
 

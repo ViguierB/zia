@@ -70,6 +70,13 @@
 			},
 			"manager": {
 				"password": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+			},
+			"headers": {
+				"response": {
+					"access-control-allow-origin": "*",
+					"access-control-allow-headers": "manager-api, content-type",
+					"access-control-allow-methods": "POST, GET, OPTION"
+				}
 			}
 		},
 		{
@@ -89,9 +96,15 @@
 				"private-key": "cert/server.pem"
 			},
 			"reverse-proxy": {
-				"host": "localhost",
-				"port": 8090,
+				"host": "holidev.net",
+				"port": 8088,
 				"scheme": "http"
+			},
+			"headers": {
+				"request": {
+					"host": "holidev.net:8088",
+					"cache-control": "no-cache"
+				}
 			}
 		},
 		{
