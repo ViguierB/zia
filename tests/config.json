@@ -15,6 +15,21 @@
 			]
 		},
 		{
+			"host": "viguierb.localhost",
+			"port": 4433,
+			"path": "www/viguierb/",
+			"ssl": {
+				"certificate": "cert/server.pem",
+				"private-key": "cert/server.pem"
+			},
+			"mime": [
+				[ ".png", "image/png" ],
+				[ ".jpg", "image/jpg" ],
+				[ ".jpeg", "image/jpeg" ],
+				[ ".php" ]
+			]
+		},
+		{
 			"host": "secure.localhost",
 			"port": 4433,
 			"rewrite": [
