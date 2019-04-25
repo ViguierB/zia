@@ -18,4 +18,4 @@
 	- cmake [x64](https://github.com/Kitware/CMake/releases/download/v3.13.3/cmake-3.13.3-win64-x64.msi) | [x86](https://github.com/Kitware/CMake/releases/download/v3.13.3/cmake-3.13.3-win32-x86.msi)
 	- [conan](https://conan.io/)
 - ### MacOs
-	Not tested yet :/
+	Not tested yet :/q

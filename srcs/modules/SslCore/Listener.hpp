@@ -138,9 +138,11 @@ public:
 	void handleAccept(zany::Connection::SharedInstance nConnection, const boost::system::error_code& error) {
 		if (!error) {
 			auto &&remoteEp = Connection::fromZany(*nConnection).socket().remote_endpoint();
+			auto &&localEp = Connection::fromZany(*nConnection).socket().local_endpoint();
 			auto &&remoteAd = remoteEp.address();
 			nConnection->info.ip = remoteAd.to_string();
 			nConnection->info.port = remoteEp.port();
+			nConnection->info.localPort = localEp.port();
 
 			std::cout
 				<< boost::posix_time::to_simple_string(boost::posix_time::second_clock::local_time()) << ": "

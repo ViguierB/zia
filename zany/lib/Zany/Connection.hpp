@@ -27,6 +27,8 @@ public:
 	struct {
 		std::string 	ip;
 		std::uint16_t	port;
+
+		std::uint16_t	localPort;
 	}	info;
 };
 

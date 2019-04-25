@@ -224,7 +224,11 @@ void	HttpModule::_beforeHandleRequest(zany::Pipeline::Instance &i) {
 			std::getline(splitor, i.request.host, ':');
 			std::getline(splitor, port);
 
-			i.request.port = static_cast<int>(zany::HttpHeader(port).getNumber());
+			if (port.empty() == false) {
+				i.request.port = static_cast<int>(zany::HttpHeader(port).getNumber());
+			} else {
+				i.request.port = i.connection->info.localPort;
+			}
 		}
 	}
 
