@@ -29,9 +29,6 @@ private:
 void	MimeModule::init() {
 	garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_REQUEST>()
 		.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&MimeModule::_onHandleRequest, this, std::placeholders::_1));
-
-	// garbage << this->master->getPipeline().getHookSet<zany::Pipeline::Hooks::ON_HANDLE_RESPONSE>()
-	// 	.addTask<zany::Pipeline::Priority::MEDIUM>(std::bind(&MimeModule::_onHandleResponse, this, std::placeholders::_1));
 }
 
 bool	MimeModule::_isAllowedExt(boost::filesystem::path const &path, zany::Pipeline::Instance const &i, std::string &type) const {
@@ -89,10 +86,6 @@ void	MimeModule::_onHandleRequest(zany::Pipeline::Instance &i) {
 		i.response.headers["content-type"] = mime;
 		i.response.headers["content-length"] = std::to_string(boost::filesystem::file_size(i.request.path));
 	}
-}
-
-void	MimeModule::_onHandleResponse(zany::Pipeline::Instance &i) {
-	
 }
 
 }

@@ -283,7 +283,9 @@ void	HttpModule::_beforeHandleResponse(zany::Pipeline::Instance &i) {
 	} else if (!boost::filesystem::is_regular_file(i.request.path)) {
 		i.response.status = 404;
 	} else if (i.request.method == zany::HttpRequest::RequestMethods::GET && i.writerID == this->getUniqueId()) {
-		auto &fs = (i.properties["filestream"] = zany::Property::make<std::ifstream>(i.request.path)).get<std::ifstream>();
+		auto &fs = (i.properties["filestream"] = zany::Property::make<boost::filesystem::ifstream>(
+			i.request.path, std::ios_base::in | std::ios_base::binary
+		)).get<boost::filesystem::ifstream>();
 
 		if (fs.bad()) {
 			i.response.status = 500;
@@ -317,7 +319,7 @@ void	HttpModule::_onHandleResponse(zany::Pipeline::Instance &i) {
 	if (i.writerID == this->getUniqueId()
 	&& i.response.status == 200
 	&& i.request.method == zany::HttpRequest::RequestMethods::GET) {
-		auto 	&fs = i.properties["filestream"].get<std::ifstream>();
+		auto 	&fs = i.properties["filestream"].get<boost::filesystem::ifstream>();
 
 		i.connection->stream() << "\r\n";
 		if (*i.response.headers["transfer-encoding"] == "chunked") {
